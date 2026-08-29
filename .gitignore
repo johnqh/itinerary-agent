@@ -14,3 +14,9 @@ coverage/
 
 .trueforge/
 sandbox-scratch/
+
+# A bare `data` pattern in a developer's global gitignore silently swallowed
+# src/data/, which left the seed dataset untracked and the branch unbuildable.
+# The seed dataset is a committed artifact of this project, not local scratch.
+!src/data/
+!src/data/**
