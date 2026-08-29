@@ -1,3 +1,5 @@
+import Coverflow from "@/components/Coverflow";
+import { categoryStyle } from "@/lib/categories";
 import type { Attraction } from "@/types/workspace";
 
 interface Props {
@@ -16,8 +18,15 @@ function hoursLabel(attraction: Attraction, date: string): string {
 export default function DetailPanel({ attraction, tripDates, onClose }: Props) {
   return (
     <aside className="max-h-[60%] w-80 overflow-y-auto rounded-lg border border-hairline bg-white/95 p-4 shadow-lg backdrop-blur">
+      <Coverflow images={attraction.photoUrls} alt={attraction.name} />
+
       <div className="flex items-start justify-between gap-2">
-        <h2 className="text-base font-semibold leading-snug">{attraction.name}</h2>
+        <h2 className="text-base font-semibold leading-snug">
+          <span aria-hidden className="mr-1.5">
+            {categoryStyle(attraction.category).glyph}
+          </span>
+          {attraction.name}
+        </h2>
         <button
           type="button"
           onClick={onClose}

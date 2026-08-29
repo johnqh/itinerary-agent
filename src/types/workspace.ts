@@ -171,6 +171,8 @@ export interface Plan {
  * a meal click from silently resolving to nothing.
  */
 export type Selection =
+  /** A route leg, identified by the day it belongs to and where it starts. */
+  | { kind: "leg"; date: string; fromIndex: number }
   | { kind: "attraction"; id: string }
   | { kind: "restaurant"; id: string };
 

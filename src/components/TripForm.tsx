@@ -80,8 +80,8 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
       {dataset ? (
         <p className="rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-muted">
           <span className="font-medium text-ink">{dataset.label}</span> is covered
-          offline, so its places load instantly. Travel between them is still routed
-          for real, including transit lines.
+          offline, so its places load instantly. Travel between them is routed for
+          real when a routing key is configured.
         </p>
       ) : liveResearch === false ? (
         <p className="rounded-md border border-car/30 bg-car/5 px-3 py-2 text-xs text-ink/80">

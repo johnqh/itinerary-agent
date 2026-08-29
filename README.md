@@ -60,7 +60,7 @@ scheduling runs once, globally, as code.
 |---|---|---|
 | Real MCP tools | `src/agent/discovery.ts`, `scripts/setup-harness.ts` | **Verified.** A live Kyoto run returned 14 attractions and 7 restaurants, 3 sources each. |
 | Subagents | `src/agent/discovery.ts`, `discoveryProgress.ts` | **Verified.** Runs spawned 2–3 researchers; fan-out is tracked from `thread.created` / `thread.done`. |
-| Sandboxed code execution | `src/agent/optimizer.ts`, `optimizerAgent.ts` | **Partly verified.** The sandbox runs Python on the harness's local fallback with no Daytona account. The optimizer provisioned a sandbox and ran its solver four times before the OpenAI account hit its spend limit; it has not yet completed a full run. |
+| Sandboxed code execution | `src/agent/optimizer.ts`, `optimizerAgent.ts` | **Partly verified.** Python runs in the harness's built-in local sandbox, with no sandbox provider to configure. The optimizer provisioned a sandbox and ran its solver four times before the OpenAI account hit its spend limit; it has not yet completed a full run. |
 | Human checkpoint | `src/agent/adapter.ts`, `src/components/CandidateList.tsx` | **Verified at the product level** — discovery stops and nothing is scheduled until ratings are submitted. The harness-native `ask_user_question` suspension is **not built**. |
 | Persistent sessions | `src/agent/sessionStore.ts` | **Verified.** A reload restores the trip, candidates, ratings and plan. Harness-side turn resumption is not yet exercised. |
 

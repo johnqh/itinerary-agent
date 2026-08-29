@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  Attraction,
   ItineraryAgent,
+  Plan,
+  Restaurant,
   Rating,
   TripRequest,
   Workspace,
@@ -201,7 +204,7 @@ export function useItineraryAgent(): ItineraryAgent {
         await runOfflineDiscovery(
           trip,
           dataset,
-          `Offline dataset for ${dataset.label}: hand-checked places, so this loads instantly. Travel between them is still routed for real.`,
+          `Offline dataset for ${dataset.label}: hand-checked places, not retrieved just now, so this loads instantly.`,
         );
         return;
       }
@@ -286,57 +289,65 @@ export function useItineraryAgent(): ItineraryAgent {
   /**
    * Replaces the plan's estimated legs with routed ones.
    *
-   * Runs after scheduling rather than during it: the planner needs travel
-   * times to build a day at all, and routing every candidate pair to get them
-   * would be quadratic. Routing the itinerary the planner chose is linear in
-   * its stops, and it is what turns "rideshare, estimated" into "Muni N".
+   * The plan is passed in rather than read back from state: a state updater has
+   * not run by the time the action that queued it continues, so reading it here
+   * would find the previous plan, or none at all.
+   *
+   * Runs after scheduling rather than during it. The planner needs travel times
+   * to build a day, and routing every candidate pair to get them is quadratic;
+   * routing the itinerary it chose is linear in its stops, and it is what turns
+   * "rideshare, estimated" into "Muni N".
    */
-  const routePlan = useCallback(async () => {
-    const current = workspaceRef.current;
-    if (!current.plan || !current.trip) return;
-
-    setWorkspace((w) => ({
-      ...w,
-      progress: { label: "Finding the way between stops", done: 0, total: 1 },
-    }));
-
-    try {
-      const { plan, degraded } = await refinePlanRoutes(current.plan, {
-        trip: current.trip,
-        attractions: current.attractions,
-        restaurants: current.restaurants,
-      });
-      setWorkspace((w) =>
-        w.plan
-          ? {
-              ...w,
-              plan: { ...plan, version: w.plan.version },
-              progress: null,
-              degraded: { ...w.degraded, routing: degraded },
-            }
-          : w,
-      );
-    } catch (error) {
+  const routePlan = useCallback(
+    async (
+      plan: Plan,
+      trip: TripRequest,
+      attractions: Attraction[],
+      restaurants: Restaurant[],
+    ) => {
       setWorkspace((w) => ({
         ...w,
-        progress: null,
-        degraded: {
-          ...w.degraded,
-          routing: `${error instanceof Error ? error.message : "Routing failed."} Travel times are straight-line estimates.`,
-        },
+        progress: { label: "Finding the way between stops", done: 0, total: 1 },
       }));
-    }
-  }, []);
 
+      try {
+        const refined = await refinePlanRoutes(plan, { trip, attractions, restaurants });
+        setWorkspace((w) =>
+          w.plan
+            ? {
+                ...w,
+                plan: { ...refined.plan, version: w.plan.version },
+                progress: null,
+                degraded: { ...w.degraded, routing: refined.degraded },
+              }
+            : w,
+        );
+      } catch (error) {
+        setWorkspace((w) => ({
+          ...w,
+          progress: null,
+          degraded: {
+            ...w.degraded,
+            routing: `${error instanceof Error ? error.message : "Routing failed."} Travel times are straight-line estimates.`,
+          },
+        }));
+      }
+    },
+    [],
+  );
+
+  /** Schedules with the local greedy builder, returning what it produced. */
   const planLocally = useCallback(
-    async (reason?: string) => {
+    async (reason?: string): Promise<Plan | null> => {
       await delay(STEP_DELAY_MS);
-      setWorkspace((current) => {
-        const next = runPlan(current);
-        return reason
-          ? { ...next, degraded: { ...next.degraded, optimizer: reason } }
-          : next;
-      });
+      const current = workspaceRef.current;
+      if (!current.trip) return null;
+
+      const next = runPlan(current);
+      setWorkspace(() =>
+        reason ? { ...next, degraded: { ...next.degraded, optimizer: reason } } : next,
+      );
+      return next.plan;
     },
     [runPlan],
   );
@@ -349,9 +360,11 @@ export function useItineraryAgent(): ItineraryAgent {
     }));
 
     const current = workspaceRef.current;
-    if (!liveRef.current || !current.trip) {
-      await planLocally();
-      await routePlan();
+    if (!current.trip) return;
+
+    if (!liveRef.current) {
+      const built = await planLocally();
+      if (built) await routePlan(built, current.trip, current.attractions, current.restaurants);
       return;
     }
 
@@ -382,7 +395,7 @@ export function useItineraryAgent(): ItineraryAgent {
           meals: w.trip ? mealNotice(outcome.plan, w.trip.meals) : null,
         },
       }));
-      await routePlan();
+      await routePlan(outcome.plan, current.trip, current.attractions, current.restaurants);
     } catch (error) {
       // A rejected schedule is not a crash: the deterministic planner answers
       // instead, and the reason is shown rather than swallowed.
@@ -392,8 +405,8 @@ export function useItineraryAgent(): ItineraryAgent {
           : `The agent could not schedule this trip, so the built-in planner did. ${
               error instanceof Error ? error.message : ""
             }`;
-      await planLocally(reason.trim());
-      await routePlan();
+      const built = await planLocally(reason.trim());
+      if (built) await routePlan(built, current.trip, current.attractions, current.restaurants);
     }
   }, [planLocally, routePlan]);
 

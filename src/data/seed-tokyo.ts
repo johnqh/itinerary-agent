@@ -30,7 +30,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Free",
     ticketRequired: false,
     officialUrl: "https://www.senso-ji.jp/",
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/4/43/Sensoji_2023.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/4/43/Sensoji_2023.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Sensoji_2023.jpg/500px-Sensoji_2023.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Hozomon_Gate%28left%29%E3%83%BBFive-storied_Pagoda%28center%29%E3%83%BBFortune_Slip_Shop%28right%29.jpg/500px-Hozomon_Gate%28left%29%E3%83%BBFive-storied_Pagoda%28center%29%E3%83%BBFortune_Slip_Shop%28right%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Inside_the_main_hall.jpg/500px-Inside_the_main_hall.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "skytree",
@@ -57,7 +57,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 60,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/1/18/Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/1/18/Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ueno_park.jpg/500px-Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Ueno_Seiyoken_in_the_Meiji_era.JPG/500px-Ueno_Seiyoken_in_the_Meiji_era.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Shinobugaoka_Junior_High_School%2C_Taito_04.jpg/500px-Shinobugaoka_Junior_High_School%2C_Taito_04.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tokyo-national-museum",
@@ -72,7 +72,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Around ¥1,000",
     ticketRequired: true,
     officialUrl: "https://www.tnm.jp/",
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg/500px-Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Yushima_Seid%C3%B4.jpg/250px-Yushima_Seid%C3%B4.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/Yushima-Seido_Exhibition-1872-by-Ikkei-Shosai.png/250px-Yushima-Seido_Exhibition-1872-by-Ikkei-Shosai.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "akihabara",
@@ -85,7 +85,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Free to browse",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png/3840px-Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png/3840px-Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png/500px-Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Akihabara_1976.jpg/500px-Akihabara_1976.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Akihabara_-05.jpg/250px-Akihabara_-05.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "imperial-gardens",
@@ -99,7 +99,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Seimon_Ishibashi.JPG/3840px-Seimon_Ishibashi.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Seimon_Ishibashi.JPG/3840px-Seimon_Ishibashi.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Seimon_Ishibashi.JPG/500px-Seimon_Ishibashi.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Tokyo_Imperial_Palace_pic_08.jpg/500px-Tokyo_Imperial_Palace_pic_08.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/%E6%98%8E%E6%B2%BB%E5%AE%AE%E6%AE%BF%E7%A9%BA%E4%B8%AD%E5%86%99%E7%9C%9F.jpg/500px-%E6%98%8E%E6%B2%BB%E5%AE%AE%E6%AE%BF%E7%A9%BA%E4%B8%AD%E5%86%99%E7%9C%9F.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "ginza",
@@ -111,7 +111,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "11:00", close: "20:00" },
     visitMinutes: 60,
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/5/5b/Ginza-WAKO_at_night.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/5/5b/Ginza-WAKO_at_night.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Ginza-WAKO_at_night.jpg/500px-Ginza-WAKO_at_night.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Wrau-ginza-tokyo.jpg/330px-Wrau-ginza-tokyo.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Ginza_Street_in1936.jpg/500px-Ginza_Street_in1936.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tsukiji-outer",
@@ -124,7 +124,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "06:00", close: "14:00" },
     visitMinutes: 60,
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/f/fd/2018_Tsukiji_fish_market.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/f/fd/2018_Tsukiji_fish_market.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/2018_Tsukiji_fish_market.jpg/500px-2018_Tsukiji_fish_market.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Crowds_of_Nishiki_Market_%2827816395458%29.jpg/500px-Crowds_of_Nishiki_Market_%2827816395458%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tsukiji.CuttingFrozenTuna.jpg/500px-Tsukiji.CuttingFrozenTuna.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "teamlab-planets",
@@ -139,7 +139,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Around ¥3,800",
     ticketRequired: true,
     officialUrl: "https://www.teamlab.art/e/planets/",
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Teamlab_logo_RGB_color.png/3840px-Teamlab_logo_RGB_color.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Teamlab_logo_RGB_color.png/3840px-Teamlab_logo_RGB_color.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/TeamLab_Borderless_Azabudai_Hills.jpg/500px-TeamLab_Borderless_Azabudai_Hills.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "shibuya-crossing",
@@ -152,7 +152,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 40,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/8/88/Shibuya_Crossing%2C_Aerial.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/8/88/Shibuya_Crossing%2C_Aerial.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Shibuya_Crossing%2C_Aerial.jpg/500px-Shibuya_Crossing%2C_Aerial.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Shibuya_Crossing_in_July_2026.jpg/500px-Shibuya_Crossing_in_July_2026.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Early_summer_night_Shibuya.jpg/330px-Early_summer_night_Shibuya.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "meiji-jingu",
@@ -166,7 +166,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Meiji_Jingu_2023-3.jpg/3840px-Meiji_Jingu_2023-3.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Meiji_Jingu_2023-3.jpg/3840px-Meiji_Jingu_2023-3.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Meiji_Jingu_2023-3.jpg/500px-Meiji_Jingu_2023-3.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Meji_Shrine_under_construction_1920.jpg/500px-Meji_Shrine_under_construction_1920.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png/500px-Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "shinjuku-gyoen",
@@ -180,7 +180,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Around ¥500",
     ticketRequired: true,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/9/9d/Shinjuku_Gyoen_National_Garden_-_sakura_3.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/9/9d/Shinjuku_Gyoen_National_Garden_-_sakura_3.JPG?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Shinjuku_Gyoen_National_Garden_-_sakura_3.JPG/500px-Shinjuku_Gyoen_National_Garden_-_sakura_3.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Shinjuku_gyoen_sunny_autumn_day.jpg/330px-Shinjuku_gyoen_sunny_autumn_day.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Shinjuku_Gyoen_National_Garden_-_sakura_2.JPG/330px-Shinjuku_Gyoen_National_Garden_-_sakura_2.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tmg-observation",
@@ -193,7 +193,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 45,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/9/96/Tokyo_Metropolitan_Government_Building_2024.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/9/96/Tokyo_Metropolitan_Government_Building_2024.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Tokyo_Metropolitan_Government_Building_2024.jpg/500px-Tokyo_Metropolitan_Government_Building_2024.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/Tokyo_Prefectural_Office_and_Tokyo_City_Hall_1930s.jpg/120px-Tokyo_Prefectural_Office_and_Tokyo_City_Hall_1930s.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Tokyo_Metropolitan_Government_Building_circa_1960.jpg/120px-Tokyo_Metropolitan_Government_Building_circa_1960.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "harajuku",
@@ -205,7 +205,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "10:00", close: "20:00" },
     visitMinutes: 50,
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/b/bd/JRE-Harajuku-Station-07.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/b/bd/JRE-Harajuku-Station-07.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/JRE-Harajuku-Station-07.jpg/500px-JRE-Harajuku-Station-07.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Omote-sando03s3200.jpg/500px-Omote-sando03s3200.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Cat_Street%2C_Ura_Harajuku_2.jpg/500px-Cat_Street%2C_Ura_Harajuku_2.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
 ];
 

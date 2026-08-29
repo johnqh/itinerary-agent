@@ -11,6 +11,7 @@ import DetailPanel from "@/components/DetailPanel";
 import Legend from "@/components/Legend";
 import MapView from "@/components/MapView";
 import RestaurantPanel from "@/components/RestaurantPanel";
+import LegPanel from "@/components/LegPanel";
 import Timeline from "@/components/Timeline";
 import TripForm from "@/components/TripForm";
 import type { Selection } from "@/types/workspace";
@@ -69,6 +70,22 @@ export default function App() {
         ],
         SEED_CENTER,
       ),
+    [workspace.attractions, workspace.restaurants],
+  );
+
+  const selectedLeg = useMemo(() => {
+    const current = workspace.plan;
+    if (selection?.kind !== "leg" || !current) return null;
+    const legDay = current.days.find((d) => d.date === selection.date);
+    const leg = legDay?.legs.find((l) => l.fromIndex === selection.fromIndex);
+    return leg && legDay ? { leg, day: legDay } : null;
+  }, [selection, workspace.plan]);
+
+  const nameOf = useCallback(
+    (refId: string) =>
+      workspace.attractions.find((a) => a.id === refId)?.name ??
+      workspace.restaurants.find((r) => r.id === refId)?.name ??
+      refId,
     [workspace.attractions, workspace.restaurants],
   );
 
@@ -239,6 +256,19 @@ export default function App() {
             onSelect={setSelection}
             onTileError={handleTileError}
           />
+          {selectedLeg && (
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-[400] flex items-end p-3">
+              <div className="pointer-events-auto">
+                <LegPanel
+                  leg={selectedLeg.leg}
+                  from={selectedLeg.day.items[selectedLeg.leg.fromIndex]}
+                  to={selectedLeg.day.items[selectedLeg.leg.toIndex]}
+                  nameOf={nameOf}
+                  onClose={() => setSelection(null)}
+                />
+              </div>
+            </div>
+          )}
           {(selectedAttraction || selectedRestaurant) && (
             <div className="pointer-events-none absolute inset-y-0 right-0 z-[400] flex items-end p-3">
               <div className="pointer-events-auto">

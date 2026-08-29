@@ -99,7 +99,24 @@ export default function Timeline({
             </div>
 
             {leg && (
-              <div className="grid grid-cols-[3.25rem_1rem_1fr] gap-x-2">
+              <div
+                className={`grid cursor-pointer grid-cols-[3.25rem_1rem_1fr] gap-x-2 rounded transition-colors ${
+                  selection?.kind === "leg" &&
+                  selection.date === day.date &&
+                  selection.fromIndex === leg.fromIndex
+                    ? "bg-ink/5"
+                    : "hover:bg-ink/[0.03]"
+                }`}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect({ kind: "leg", date: day.date, fromIndex: leg.fromIndex })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect({ kind: "leg", date: day.date, fromIndex: leg.fromIndex });
+                  }
+                }}
+              >
                 <div />
                 <div className="flex justify-center">
                   <span
@@ -125,8 +142,16 @@ export default function Timeline({
                     </span>
                   </div>
                   {leg.transitLines && leg.transitLines.length > 0 && (
-                    <div className="text-[11px] text-muted">
-                      {leg.transitLines.join(", ")}
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {leg.transitLines.map((line, i) => (
+                        <span
+                          key={`${line}-${i}`}
+                          className="tabular rounded px-1.5 py-px text-[10px] font-semibold text-white"
+                          style={{ backgroundColor: MODE_COLORS[leg.mode] }}
+                        >
+                          {line}
+                        </span>
+                      ))}
                     </div>
                   )}
                   {leg.fallbackReason && (
