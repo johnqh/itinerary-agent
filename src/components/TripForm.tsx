@@ -1,15 +1,12 @@
 import { useState } from "react";
 import type { MealStrictness, Pace, TripRequest } from "@/types/workspace";
+import { hasSeedData } from "@/agent/notices";
+import { isoDaysFromNow } from "@/lib/dates";
+import { MAX_TRIP_DAYS, validateTripDates } from "@/planner/build";
 import { SEED_DESTINATION } from "@/data/seed-tokyo";
 
 const CUISINES = ["japanese", "local", "italian", "vegetarian", "cafe", "quick bite"];
 const PACES: Pace[] = ["relaxed", "balanced", "packed"];
-
-function isoDaysFromNow(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
 
 export default function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }) {
   const [destination, setDestination] = useState(SEED_DESTINATION);
@@ -21,7 +18,9 @@ export default function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) =
   const [strictness, setStrictness] = useState<MealStrictness>("prefer");
   const [notes, setNotes] = useState("");
 
-  const datesValid = startDate <= endDate;
+  // The planner enforces exactly this rule, so the two cannot disagree.
+  const dateError = validateTripDates(startDate, endDate);
+  const destinationCovered = hasSeedData(destination);
 
   function toggleCuisine(cuisine: string) {
     setCuisines((current) =>
@@ -33,7 +32,7 @@ export default function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) =
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!datesValid) return;
+    if (dateError) return;
     onSubmit({
       destination,
       startDate,
@@ -62,13 +61,26 @@ export default function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) =
           required
           className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
+        <span className="mt-1 block text-xs text-neutral-500">
+          Live research is not connected yet, so {SEED_DESTINATION} is the only city
+          with data.
+        </span>
       </label>
+      {!destinationCovered && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          There is no data for {destination.trim() || "that destination"} yet. Planning
+          will run on the offline {SEED_DESTINATION} dataset, so the attractions, the
+          map and the travel times will all be {SEED_DESTINATION}, not{" "}
+          {destination.trim() || "your destination"}.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="text-sm font-medium">First day</span>
           <input
             type="date"
+            required
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
@@ -78,14 +90,19 @@ export default function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) =
           <span className="text-sm font-medium">Last day</span>
           <input
             type="date"
+            required
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
           />
         </label>
       </div>
-      {!datesValid && (
-        <p className="text-sm text-red-600">The last day cannot fall before the first.</p>
+      {dateError ? (
+        <p className="text-sm text-red-600">{dateError}</p>
+      ) : (
+        <p className="text-xs text-neutral-500">
+          Up to {MAX_TRIP_DAYS} days are planned in one trip.
+        </p>
       )}
 
       <fieldset>
@@ -162,7 +179,7 @@ export default function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) =
 
       <button
         type="submit"
-        disabled={!datesValid}
+        disabled={Boolean(dateError)}
         className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40"
       >
         Find attractions
