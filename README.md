@@ -1,4 +1,4 @@
-# Itinerary Agent
+# Compass
 
 Turns a destination and a set of dates into a route-aware, day-by-day itinerary.
 

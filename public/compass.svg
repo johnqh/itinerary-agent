@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Compass">
+  <!-- The bezel. Kept heavy so the shape still reads at favicon size. -->
+  <circle cx="32" cy="32" r="29" fill="#111820" />
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#E6EAEE" stroke-width="2.5" />
+  <!-- The needle: north in the transit blue the routes use, south muted. -->
+  <path d="M32 10 L40 34 L32 30 Z" fill="#1D5FD0" />
+  <path d="M32 54 L24 30 L32 34 Z" fill="#8E9AA6" />
+  <circle cx="32" cy="32" r="3.5" fill="#E6EAEE" />
+</svg>

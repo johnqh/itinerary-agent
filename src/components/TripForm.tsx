@@ -80,7 +80,7 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
   return (
     <form onSubmit={submit} className="mx-auto max-w-xl space-y-5 px-6 py-10">
       <header>
-        <span className="eyebrow">Itinerary agent</span>
+        <span className="eyebrow">Compass</span>
         <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-[-0.02em]">
           Plan a trip
         </h1>
