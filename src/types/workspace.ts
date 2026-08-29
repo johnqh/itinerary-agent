@@ -209,19 +209,10 @@ export interface Workspace {
   degraded: DegradedState;
 }
 
-export interface DiscoveryOptions {
-  /**
-   * Research the destination live from the web rather than using the offline
-   * dataset. Off by default: a live run takes minutes, which is the wrong
-   * default for someone trying the product out.
-   */
-  live?: boolean;
-}
-
 /** The interface the workspace UI consumes. The adapter is its only implementer. */
 export interface ItineraryAgent {
   workspace: Workspace;
-  createTrip(trip: TripRequest, options?: DiscoveryOptions): Promise<void>;
+  createTrip(trip: TripRequest): Promise<void>;
   discover(): Promise<void>;
   setRating(attractionId: string, rating: Rating): void;
   submitRatings(): Promise<void>;

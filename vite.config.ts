@@ -1,3 +1,4 @@
+import type { ProxyOptions } from "vite";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
@@ -15,13 +16,31 @@ const harnessProxy = {
   },
 };
 
+// Google Routes is reached through this origin too, and for a stronger reason:
+// the API key is injected here, server-side. A `VITE_`-prefixed key would be
+// inlined into the client bundle and readable by anyone who opens the page.
+// Requests carry their own field mask, which is not secret.
+const routingProxy: Record<string, ProxyOptions> = {
+  "/gmaps": {
+    target: "https://routes.googleapis.com",
+    changeOrigin: true,
+    rewrite: (path) => path.replace(/^\/gmaps/, ""),
+    configure: (proxy) => {
+      proxy.on("proxyReq", (proxyReq) => {
+        const key = process.env.GOOGLE_MAPS_API_KEY?.trim();
+        if (key) proxyReq.setHeader("X-Goog-Api-Key", key);
+      });
+    },
+  },
+};
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
-  server: { proxy: harnessProxy },
-  preview: { proxy: harnessProxy },
+  server: { proxy: { ...harnessProxy, ...routingProxy } },
+  preview: { proxy: { ...harnessProxy, ...routingProxy } },
   test: {
     globals: true,
     environment: "node",

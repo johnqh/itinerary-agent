@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
-  DiscoveryOptions,
   ItineraryAgent,
   Rating,
   TripRequest,
@@ -8,15 +7,15 @@ import type {
 } from "@/types/workspace";
 import { buildPlan, tripDates } from "@/planner/build";
 import {
-  discoveryFallbackNotice,
   discoverySteps,
   liveDiscoveryProvenance,
   mealNotice,
 } from "@/agent/notices";
-import { seedAttractions, seedRestaurants } from "@/data/seed-tokyo";
+import { coveredCityLabels, datasetFor, type OfflineDataset } from "@/data/datasets";
 import { harnessStatus } from "@/agent/client";
 import { runLiveDiscovery } from "@/agent/discovery";
 import { OptimizerRejected, runSandboxOptimizer } from "@/agent/optimizer";
+import { refinePlanRoutes } from "@/routing/refinePlan";
 import {
   browserStorage,
   clearSession,
@@ -131,16 +130,16 @@ export function useItineraryAgent(): ItineraryAgent {
   }, []);
 
   /**
-   * Fills the workspace with seed data and says why live research was skipped.
+   * Fills the workspace from a committed dataset.
    *
-   * The simulated step delay exists only so the traveller sees the phases the
-   * live run would report; it is cosmetic and deliberately brief.
+   * The stepped delay is cosmetic: it shows the same phases a live run reports
+   * so the two paths do not feel like different products.
    */
-  const runSeedDiscovery = useCallback(
-    async (trip: TripRequest, reason: string) => {
+  const runOfflineDiscovery = useCallback(
+    async (trip: TripRequest, dataset: OfflineDataset, reason: string) => {
       const dates = tripDates(trip);
       const steps = discoverySteps(dates);
-      const perStep = Math.max(40, Math.round(DISCOVERY_RUN_MS / steps.length));
+      const perStep = Math.max(30, Math.round(DISCOVERY_RUN_MS / steps.length));
 
       for (const [index, label] of steps.entries()) {
         await delay(perStep);
@@ -155,43 +154,61 @@ export function useItineraryAgent(): ItineraryAgent {
       setWorkspace((current) => ({
         ...current,
         phase: "rating",
-        attractions: seedAttractions(dates),
-        restaurants: seedRestaurants(dates),
+        attractions: dataset.attractions(dates),
+        restaurants: dataset.restaurants(dates),
         progress: null,
-        degraded: {
-          ...current.degraded,
-          discovery: discoveryFallbackNotice(reason, trip.destination),
-        },
+        degraded: { ...current.degraded, discovery: reason },
       }));
     },
     [],
   );
 
-  const runDiscovery = useCallback(
-    async (trip: TripRequest, options?: DiscoveryOptions) => {
-      const dates = tripDates(trip);
+  /**
+   * Reports that research failed for a city no dataset covers.
+   *
+   * There is deliberately nothing to fall back to here. Showing another city's
+   * attractions under this destination's name would be a wrong answer dressed
+   * as a fast one.
+   */
+  const reportDiscoveryFailure = useCallback((trip: TripRequest, reason: string) => {
+    setWorkspace((current) => ({
+      ...current,
+      phase: "rating",
+      attractions: [],
+      restaurants: [],
+      progress: null,
+      degraded: {
+        ...current.degraded,
+        discovery: `${reason} There is no offline dataset for ${trip.destination.trim()}, so there is nothing to show. ${coveredCityLabels().join(" and ")} work without any research at all.`,
+      },
+    }));
+  }, []);
 
-      // The offline dataset is the default because live research takes minutes.
-      // Nothing about that is hidden: the banner says which one produced the
-      // candidates on screen.
-      if (!options?.live) {
-        setWorkspace((current) => ({ ...current, phase: "discovering" }));
-        await runSeedDiscovery(
-          trip,
-          "Live web research is switched off for this trip.",
-        );
-        return;
-      }
+  const runDiscovery = useCallback(
+    async (trip: TripRequest) => {
+      const dates = tripDates(trip);
+      const dataset = datasetFor(trip.destination);
 
       setWorkspace((current) => ({
         ...current,
         phase: "discovering",
-        progress: { label: "Checking research tools", done: 0, total: 1 },
+        progress: { label: "Looking for candidates", done: 0, total: 1 },
       }));
+
+      // A covered city answers from its dataset. Research is for everywhere
+      // else, where it is the only way to get real places at all.
+      if (dataset) {
+        await runOfflineDiscovery(
+          trip,
+          dataset,
+          `Offline dataset for ${dataset.label}: hand-checked places, so this loads instantly. Travel between them is still routed for real.`,
+        );
+        return;
+      }
 
       const status = await harnessStatus();
       if (!status.available) {
-        await runSeedDiscovery(trip, status.reason);
+        reportDiscoveryFailure(trip, status.reason);
         return;
       }
 
@@ -205,13 +222,8 @@ export function useItineraryAgent(): ItineraryAgent {
             ),
         });
 
-        // Research that returns nothing usable is a failed run, not an empty
-        // city. Falling back beats showing a traveller an empty map.
         if (outcome.attractions.length === 0) {
-          await runSeedDiscovery(
-            trip,
-            "Live research returned no usable attractions.",
-          );
+          reportDiscoveryFailure(trip, "Research returned no usable attractions.");
           return;
         }
 
@@ -223,9 +235,6 @@ export function useItineraryAgent(): ItineraryAgent {
           restaurants: outcome.restaurants,
           progress: null,
           degraded: {
-            // Provenance is stated on every live run, not only a thin one:
-            // "these facts were retrieved just now" is the claim this path
-            // makes, and an unlabelled screen makes it invisibly.
             ...current.degraded,
             discovery: liveDiscoveryProvenance(trip.destination, {
               attractionCount: outcome.attractions.length,
@@ -235,13 +244,13 @@ export function useItineraryAgent(): ItineraryAgent {
           },
         }));
       } catch (error) {
-        await runSeedDiscovery(
+        reportDiscoveryFailure(
           trip,
-          error instanceof Error ? error.message : "Live research failed.",
+          error instanceof Error ? error.message : "Research failed.",
         );
       }
     },
-    [runSeedDiscovery],
+    [runOfflineDiscovery, reportDiscoveryFailure],
   );
 
   const discover = useCallback(async () => {
@@ -250,10 +259,10 @@ export function useItineraryAgent(): ItineraryAgent {
   }, [runDiscovery]);
 
   const createTrip = useCallback(
-    async (trip: TripRequest, options?: DiscoveryOptions) => {
-      liveRef.current = options?.live === true;
+    async (trip: TripRequest) => {
+      liveRef.current = datasetFor(trip.destination) === null;
       setWorkspace({ ...EMPTY, trip, phase: "setup" });
-      await runDiscovery(trip, options);
+      await runDiscovery(trip);
     },
     [runDiscovery],
   );
@@ -274,6 +283,51 @@ export function useItineraryAgent(): ItineraryAgent {
   }, []);
 
   /** Schedules with the local greedy builder, saying why if it was a fallback. */
+  /**
+   * Replaces the plan's estimated legs with routed ones.
+   *
+   * Runs after scheduling rather than during it: the planner needs travel
+   * times to build a day at all, and routing every candidate pair to get them
+   * would be quadratic. Routing the itinerary the planner chose is linear in
+   * its stops, and it is what turns "rideshare, estimated" into "Muni N".
+   */
+  const routePlan = useCallback(async () => {
+    const current = workspaceRef.current;
+    if (!current.plan || !current.trip) return;
+
+    setWorkspace((w) => ({
+      ...w,
+      progress: { label: "Finding the way between stops", done: 0, total: 1 },
+    }));
+
+    try {
+      const { plan, degraded } = await refinePlanRoutes(current.plan, {
+        trip: current.trip,
+        attractions: current.attractions,
+        restaurants: current.restaurants,
+      });
+      setWorkspace((w) =>
+        w.plan
+          ? {
+              ...w,
+              plan: { ...plan, version: w.plan.version },
+              progress: null,
+              degraded: { ...w.degraded, routing: degraded },
+            }
+          : w,
+      );
+    } catch (error) {
+      setWorkspace((w) => ({
+        ...w,
+        progress: null,
+        degraded: {
+          ...w.degraded,
+          routing: `${error instanceof Error ? error.message : "Routing failed."} Travel times are straight-line estimates.`,
+        },
+      }));
+    }
+  }, []);
+
   const planLocally = useCallback(
     async (reason?: string) => {
       await delay(STEP_DELAY_MS);
@@ -297,6 +351,7 @@ export function useItineraryAgent(): ItineraryAgent {
     const current = workspaceRef.current;
     if (!liveRef.current || !current.trip) {
       await planLocally();
+      await routePlan();
       return;
     }
 
@@ -327,6 +382,7 @@ export function useItineraryAgent(): ItineraryAgent {
           meals: w.trip ? mealNotice(outcome.plan, w.trip.meals) : null,
         },
       }));
+      await routePlan();
     } catch (error) {
       // A rejected schedule is not a crash: the deterministic planner answers
       // instead, and the reason is shown rather than swallowed.
@@ -337,8 +393,9 @@ export function useItineraryAgent(): ItineraryAgent {
               error instanceof Error ? error.message : ""
             }`;
       await planLocally(reason.trim());
+      await routePlan();
     }
-  }, [planLocally]);
+  }, [planLocally, routePlan]);
 
   const submitRatings = useCallback(async () => {
     await generatePlan();
