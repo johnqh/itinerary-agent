@@ -561,3 +561,95 @@ describe("accounting for every attraction", () => {
     expect(result.violations.join(" ")).toMatch(/no reason/i);
   });
 });
+
+/**
+ * Under `strong` strictness the deterministic planner treats cuisine as a
+ * constraint and reports the meal unplaced rather than seating the wrong one.
+ * The validator has to agree, or the optimizer can seat a meal the planner
+ * would have refused and, by seating it, silence the missing-meal warning.
+ */
+describe("the strong cuisine preference", () => {
+  function checkMeals(days: PlanDay[], meals: TripRequest["meals"]) {
+    return validateAgentPlan(
+      days,
+      { trip: { ...trip, meals }, dates: DATES, attractions, restaurants },
+      accountFor(days),
+    );
+  }
+
+  test("rejects a meal at a restaurant serving none of the requested cuisines", () => {
+    const result = checkMeals([day(), secondDay()], {
+      cuisines: ["italian"],
+      strictness: "strong",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/italian/i);
+  });
+
+  test("accepts a meal whose cuisine matches, whatever the letter case", () => {
+    const result = checkMeals([day(), secondDay()], {
+      cuisines: ["Japanese"],
+      strictness: "strong",
+    });
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  test("leaves a weaker strictness free to settle for another cuisine", () => {
+    const result = checkMeals([day(), secondDay()], {
+      cuisines: ["italian"],
+      strictness: "prefer",
+    });
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+});
+
+/**
+ * A meal is a sitting, not a checkbox. Without a floor the scheduler can seat a
+ * one-minute lunch, clear the missing-meal warning it would otherwise have
+ * earned, and hand the rest of the meal block back to score-earning stops.
+ */
+describe("meal sittings", () => {
+  test("rejects a one-minute lunch", () => {
+    const result = check([
+      day({
+        items: [
+          { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+          { kind: "meal", refId: "r1", meal: "lunch", startTime: "12:30", endTime: "12:31" },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/60 min/i);
+  });
+
+  test("rejects a dinner shorter than a dinner takes", () => {
+    const result = check([
+      day({
+        items: [
+          { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+          { kind: "meal", refId: "r1", meal: "dinner", startTime: "18:00", endTime: "19:00" },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/75 min/i);
+  });
+
+  test("accepts a sitting longer than the minimum", () => {
+    const result = check([
+      day({
+        items: [
+          { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+          { kind: "meal", refId: "r1", meal: "lunch", startTime: "12:00", endTime: "13:30" },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+});

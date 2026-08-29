@@ -15,6 +15,7 @@ import {
   parseClock,
 } from "@/planner/time";
 import { estimateTravel } from "@/planner/geo";
+import { MEAL_DURATIONS, violatesCuisineConstraint } from "@/planner/meals";
 import { selectMode } from "@/planner/transport";
 
 /**
@@ -33,6 +34,13 @@ import { selectMode } from "@/planner/transport";
  * rules the deterministic planner obeys, and the solver's leg has to be at
  * least that long. Reserving more time than the model asks for is allowed;
  * reserving less is a claim about the world that nothing retrieved supports.
+ *
+ * Meals are the other place where believing the schedule is a mistake, and for
+ * a different reason: a seated meal silences the missing-meal warning. So a
+ * meal that is not really a meal — a one-minute sitting, or the wrong cuisine
+ * under a strong preference — buys the scheduler an objective the fallback
+ * planner cannot buy, and hides the degraded state that would have said so.
+ * Those two rules live in `@/planner/meals` precisely so both obey one copy.
  *
  * Every violation is collected rather than failing at the first, so a rejected
  * plan can be diagnosed in one pass.
@@ -174,10 +182,31 @@ export function validateAgentPlan(
             `${label} seats ${meal} at ${item.startTime}, outside the ${meal} window.`,
           );
         }
+
+        // A sitting takes as long as it takes. A one-minute lunch is not a
+        // shorter meal, it is a meal the traveller cannot eat that still clears
+        // the missing-meal warning and hands the rest of the block back to
+        // stops that earn objective weight.
+        if (end - start < MEAL_DURATIONS[meal]) {
+          violations.push(
+            `${label} gives ${meal} ${end - start} min, but a ${meal} sitting takes ${MEAL_DURATIONS[meal]} min.`,
+          );
+        }
       }
 
       if (openDuring(restaurant.hoursByDate[day.date], start, end) === "closed") {
         violations.push(`${label} is scheduled while it is closed.`);
+      }
+
+      // Under a strong cuisine preference the deterministic planner reports the
+      // meal unplaced rather than seating the wrong one. Accepting one here
+      // would let the scheduler beat the fallback by breaking the rule the
+      // fallback obeys, and the seated meal would suppress the very warning
+      // that says the preference could not be met.
+      if (violatesCuisineConstraint(restaurant, context.trip.meals)) {
+        violations.push(
+          `${label} seats a meal at ${restaurant.name}, which serves none of the requested ${context.trip.meals.cuisines.join(" or ")}, and the cuisine preference is set to strong.`,
+        );
       }
     });
 

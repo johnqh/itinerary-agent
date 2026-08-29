@@ -1,4 +1,5 @@
 import type { Attraction, Rating, Restaurant, TripRequest } from "@/types/workspace";
+import { MEAL_DURATIONS } from "@/planner/meals";
 import { walkThresholdMinutes } from "@/planner/transport";
 
 /**
@@ -22,8 +23,8 @@ export interface OptimizerProblem {
   meals: {
     cuisines: string[];
     strictness: string;
-    lunch: { start: string; end: string };
-    dinner: { start: string; end: string };
+    lunch: { start: string; end: string; minimumMinutes: number };
+    dinner: { start: string; end: string; minimumMinutes: number };
   };
   travelModel: {
     walkKmh: number;
@@ -67,8 +68,8 @@ export function buildProblem(
     meals: {
       cuisines: trip.meals.cuisines,
       strictness: trip.meals.strictness,
-      lunch: { start: "11:30", end: "13:45" },
-      dinner: { start: "17:30", end: "20:15" },
+      lunch: { start: "11:30", end: "13:45", minimumMinutes: MEAL_DURATIONS.lunch },
+      dinner: { start: "17:30", end: "20:15", minimumMinutes: MEAL_DURATIONS.dinner },
     },
     travelModel: {
       walkKmh: 4.5,
@@ -144,6 +145,11 @@ a worse itinerary. Check them in code before you answer:
 - At most one lunch and one dinner per day, each starting inside its window, at
   a restaurant that is open for the whole sitting. Aim for both every day; if
   the data cannot seat one, leave it out rather than seating it wrongly.
+- A meal runs for at least its minimumMinutes. Trimming a sitting to buy time
+  for another stop is rejected: a one-minute lunch is not a shorter meal.
+- Under "strong" strictness a meal is seated only at a restaurant serving one of
+  the requested cuisines, matched case-insensitively. There is no wrong-cuisine
+  fallback: leave the meal out instead.
 - Every attraction is either scheduled exactly once or listed exactly once in
   "excluded" with a non-empty reason. Never both, never neither.
 - Set isCarDay true only when isCarTrip is true.
@@ -158,9 +164,9 @@ was retrieved, so a line or a transfer count would be a fabricated fact, and
 the schema does not offer the mode. On a car trip every non-walking leg is
 "car"; on any other day every non-walking leg is "rideshare".
 
-Prefer restaurants matching the requested cuisines. Under "strong" strictness
-treat cuisine as a constraint and report a meal as unplaced rather than seating
-the wrong one.
+Prefer restaurants matching the requested cuisines. Under "prefer" strictness
+detour for a match when one is open and settle for the nearest alternative
+otherwise; under "flexible" take the nearest open table.
 
 Answer with the JSON object only, matching the required schema. Every
 attraction you did not schedule must appear in excluded with a short reason.
