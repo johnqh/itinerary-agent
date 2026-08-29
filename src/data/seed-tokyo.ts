@@ -275,7 +275,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 60,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Komazawa_Gymnasium_%26_Control_Tower_2009.jpg/1280px-Komazawa_Gymnasium_%26_Control_Tower_2009.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Gotokuji.jpg/1280px-Gotokuji.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Shimokitazawa_Street_2015.jpg/1280px-Shimokitazawa_Street_2015.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/%E7%AD%89%E3%80%85%E5%8A%9B%E6%B8%93%E8%B0%B7_Pcs34560_IMG2518.jpg/1280px-%E7%AD%89%E3%80%85%E5%8A%9B%E6%B8%93%E8%B0%B7_Pcs34560_IMG2518.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/%E7%AD%89%E3%80%85%E5%8A%9B%E6%B8%93%E8%B0%B7_%E4%B8%8D%E5%8B%95%E3%81%AE%E6%BB%9D_-_panoramio.jpg/1280px-%E7%AD%89%E3%80%85%E5%8A%9B%E6%B8%93%E8%B0%B7_%E4%B8%8D%E5%8B%95%E3%81%AE%E6%BB%9D_-_panoramio.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/%E7%AD%89%E3%80%85%E5%8A%9B%E6%B8%93%E8%B0%B7_-_panoramio_%287%29.jpg/1280px-%E7%AD%89%E3%80%85%E5%8A%9B%E6%B8%93%E8%B0%B7_-_panoramio_%287%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "kagurazaka",

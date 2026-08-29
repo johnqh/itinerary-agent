@@ -127,6 +127,10 @@ describe("seed data is presentable", () => {
     "Kisenosato",
     "Shinobugaoka_Junior_High_School",
     "sanborn",
+    "Mission_High_School",
+    "Misión_San_Francisco_de_Asís",
+    "El_Capitan_Hotel",
+    "Komazawa_Gymnasium",
   ];
 
   test("no gallery shows a photograph of somewhere else", () => {
@@ -139,6 +143,29 @@ describe("seed data is presentable", () => {
               `${place.name} shows ${wrong}`,
             ).not.toContain(wrong.toLowerCase());
           }
+        }
+      }
+    }
+  });
+
+  /**
+   * A named list only catches the wrong photographs somebody has already
+   * noticed. One file hung under two names catches them by construction: two
+   * places are not the same place, so at most one of the two captions is
+   * true and the gallery is lying to the traveller either way.
+   */
+  test("no photograph is hung under two different places", () => {
+    for (const dataset of OFFLINE_DATASETS) {
+      const shownBy = new Map<string, string>();
+      for (const place of dataset.attractions(dates)) {
+        for (const url of place.photoUrls) {
+          const file = url.split("?")[0]!;
+          const owner = shownBy.get(file);
+          expect(
+            owner ?? place.name,
+            `${place.name} and ${owner} both show ${decodeURIComponent(file).split("/").pop()}`,
+          ).toBe(place.name);
+          shownBy.set(file, place.name);
         }
       }
     }
