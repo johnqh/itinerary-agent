@@ -10,7 +10,7 @@ import { buildPlan, tripDates } from "@/planner/build";
 import {
   discoveryFallbackNotice,
   discoverySteps,
-  liveDiscoveryNotice,
+  liveDiscoveryProvenance,
   mealNotice,
 } from "@/agent/notices";
 import { seedAttractions, seedRestaurants } from "@/data/seed-tokyo";
@@ -223,8 +223,11 @@ export function useItineraryAgent(): ItineraryAgent {
           restaurants: outcome.restaurants,
           progress: null,
           degraded: {
+            // Provenance is stated on every live run, not only a thin one:
+            // "these facts were retrieved just now" is the claim this path
+            // makes, and an unlabelled screen makes it invisibly.
             ...current.degraded,
-            discovery: liveDiscoveryNotice({
+            discovery: liveDiscoveryProvenance(trip.destination, {
               attractionCount: outcome.attractions.length,
               restaurantCount: outcome.restaurants.length,
               rejected: outcome.rejected,
