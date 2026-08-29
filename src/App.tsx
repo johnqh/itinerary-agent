@@ -106,8 +106,24 @@ export default function App() {
               Plan again
             </button>
           )}
+          <button
+            type="button"
+            onClick={agent.reset}
+            className="rounded-md border border-transparent px-2 py-1.5 text-[13px] text-muted transition-colors hover:border-hairline hover:text-ink"
+          >
+            New trip
+          </button>
         </div>
       </header>
+
+      {workspace.restoredAt && (
+        <div className="border-b border-hairline bg-surface px-4 py-1.5">
+          <span className="text-[11px] text-muted">
+            Picked up where you left off on{" "}
+            {new Date(workspace.restoredAt).toLocaleString()}.
+          </span>
+        </div>
+      )}
 
       <DegradedBanner degraded={degraded} />
 

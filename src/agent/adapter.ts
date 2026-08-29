@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DiscoveryOptions,
   ItineraryAgent,
@@ -17,6 +17,12 @@ import { seedAttractions, seedRestaurants } from "@/data/seed-tokyo";
 import { harnessStatus } from "@/agent/client";
 import { runLiveDiscovery } from "@/agent/discovery";
 import { OptimizerRejected, runSandboxOptimizer } from "@/agent/optimizer";
+import {
+  browserStorage,
+  clearSession,
+  loadSession,
+  saveSession,
+} from "@/agent/sessionStore";
 
 /**
  * The adapter: the only module that knows how the agent is driven.
@@ -31,6 +37,7 @@ const EMPTY: Workspace = {
   phase: "setup",
   trip: null,
   sessionId: null,
+  restoredAt: null,
   attractions: [],
   restaurants: [],
   ratings: {},
@@ -52,8 +59,36 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Rebuilds a workspace from a previous visit, or starts empty.
+ *
+ * Read once during the first render rather than in an effect, so a restored
+ * trip is on screen from the first paint instead of flashing the setup form.
+ */
+function initialWorkspace(): { workspace: Workspace; live: boolean } {
+  const storage = browserStorage();
+  const stored = storage ? loadSession(storage) : null;
+  if (!stored) return { workspace: EMPTY, live: false };
+
+  return {
+    live: stored.live,
+    workspace: {
+      ...EMPTY,
+      phase: stored.phase,
+      trip: stored.trip,
+      sessionId: stored.sessionId,
+      restoredAt: stored.savedAt,
+      attractions: stored.attractions,
+      restaurants: stored.restaurants,
+      ratings: stored.ratings,
+      plan: stored.plan,
+    },
+  };
+}
+
 export function useItineraryAgent(): ItineraryAgent {
-  const [workspace, setWorkspace] = useState<Workspace>(EMPTY);
+  const [restored] = useState(initialWorkspace);
+  const [workspace, setWorkspace] = useState<Workspace>(restored.workspace);
 
   // Read by actions that need the current trip before React has re-rendered.
   // A state updater cannot stand in for it: the updater runs when React chooses
@@ -62,7 +97,14 @@ export function useItineraryAgent(): ItineraryAgent {
   workspaceRef.current = workspace;
 
   /** Whether this trip opted into agent-run research and scheduling. */
-  const liveRef = useRef(false);
+  const liveRef = useRef(restored.live);
+
+  // Persist after every settled change so a reload rejoins the trip. Runs in
+  // an effect rather than inside the state updaters, which must stay pure.
+  useEffect(() => {
+    const storage = browserStorage();
+    if (storage) saveSession(storage, workspace, { live: liveRef.current });
+  }, [workspace]);
 
   // Pure: state updaters must be free of side effects, or React's double
   // invocation in development silently counts every plan twice.
@@ -213,6 +255,13 @@ export function useItineraryAgent(): ItineraryAgent {
     [runDiscovery],
   );
 
+  const reset = useCallback(() => {
+    const storage = browserStorage();
+    if (storage) clearSession(storage);
+    liveRef.current = false;
+    setWorkspace(EMPTY);
+  }, []);
+
   const setRating = useCallback((attractionId: string, rating: Rating) => {
     setWorkspace((current) =>
       current.ratings[attractionId] === rating
@@ -301,7 +350,8 @@ export function useItineraryAgent(): ItineraryAgent {
       submitRatings,
       generatePlan,
       replan: generatePlan,
+      reset,
     }),
-    [workspace, createTrip, discover, setRating, submitRatings, generatePlan],
+    [workspace, createTrip, discover, setRating, submitRatings, generatePlan, reset],
   );
 }

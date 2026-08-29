@@ -196,6 +196,8 @@ export interface Workspace {
   trip: TripRequest | null;
   /** The harness session this trip lives in, or null in offline seed mode. */
   sessionId: string | null;
+  /** When this workspace was restored from a previous visit, if it was. */
+  restoredAt: string | null;
   attractions: Attraction[];
   restaurants: Restaurant[];
   ratings: Record<string, Rating>;
@@ -222,4 +224,6 @@ export interface ItineraryAgent {
   submitRatings(): Promise<void>;
   generatePlan(): Promise<void>;
   replan(): Promise<void>;
+  /** Discards the stored trip and returns to setup. */
+  reset(): void;
 }
