@@ -274,6 +274,15 @@ describe("refusing records that would crash or mislead the workspace", () => {
     expect(loadSession(storage, NOW)).toBeNull();
   });
 
+  // `RestaurantPanel` renders this as `"¥".repeat(priceLevel)`, which throws
+  // outright on a negative number.
+  test("rejects a record whose price level is off the scale", () => {
+    const storage = tamper((raw) => {
+      raw.restaurants = [{ ...restaurant, priceLevel: -1 }] as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
   test("rejects a record whose degraded notices are not notices", () => {
     const storage = tamper((raw) => {
       raw.degraded = { discovery: 12 } as never;

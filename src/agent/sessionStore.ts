@@ -172,7 +172,14 @@ function isRestaurant(value: unknown): value is Restaurant {
     isLatLng(value.location) &&
     isHoursByDate(value.hoursByDate) &&
     isSources(value.sources) &&
-    isNumber(value.confidence)
+    isNumber(value.confidence) &&
+    // Rendered as a repeated currency glyph, which throws outright on a
+    // negative count.
+    (value.priceLevel === undefined ||
+      value.priceLevel === 1 ||
+      value.priceLevel === 2 ||
+      value.priceLevel === 3 ||
+      value.priceLevel === 4)
   );
 }
 
