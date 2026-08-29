@@ -9,7 +9,7 @@ import type {
   RouteLeg,
   TripRequest,
 } from "@/types/workspace";
-import { DAY_END_MINUTES, openDuring, parseClock, toClock } from "@/planner/time";
+import { DAY_END_MINUTES, inMealWindow, openDuring, parseClock, toClock } from "@/planner/time";
 import { createCachedResolver, resolveLeg, type RouteResolver } from "@/routing/refine";
 import { resolveRoute } from "@/routing/googleRoutes";
 import { departureInstant } from "@/routing/departure";
@@ -168,6 +168,13 @@ export async function refinePlanRoutes(
           infeasible.push(`${label} now runs past the end of the day`);
         } else if (openDuring(place?.hours, nextStart, nextEnd) === "closed") {
           infeasible.push(`${label} is closed by the time the measured journey arrives`);
+        } else if (item.meal && !inMealWindow(item.meal, nextStart, "acceptable")) {
+          // A meal is not just a stop with a name: the plan validator rejects a
+          // lunch seated after 13:45 outright, so refinement must not hand back
+          // one it pushed there as though the day were still sound.
+          infeasible.push(
+            `${item.meal} at ${label} is now outside the hours it can be eaten in`,
+          );
         }
 
         // Past midnight there is no hour of this day left to move the stop

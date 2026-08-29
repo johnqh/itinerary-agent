@@ -135,6 +135,15 @@ describe("keeping the schedule true to the measured legs", () => {
     expect(result.degraded).toMatch(/past the end of the day/i);
   });
 
+  test("says so when a meal is pushed out of the hour it can be eaten in", async () => {
+    // Lunch is acceptable until 13:45. A 250-minute first leg lands the
+    // traveller at the restaurant at 14:10, which the plan validator would
+    // reject outright — so refinement must not return it as if it were fine.
+    const result = await refinePlanRoutes(plan(), { trip, attractions, restaurants }, slow(250));
+    expect(result.plan.days[0]!.items[1]!.startTime).toBe("14:10");
+    expect(result.degraded).toMatch(/lunch/i);
+  });
+
   test("never writes a clock the app cannot read back", async () => {
     // 400-minute legs run the last stop past midnight, and there is no hour of
     // this day left to move it to. A "24:20" would fail the app's own parser
