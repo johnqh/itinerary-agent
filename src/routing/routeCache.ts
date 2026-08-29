@@ -77,15 +77,45 @@ function fresh(entry: CacheEntry, now: Date): boolean {
 }
 
 /**
- * Entries too old to be returned are dropped whenever the file is rewritten.
- * Left in place they would never be read again but would still take room, and
- * the file only has so much: once the bucket is full every later write is
- * refused, and a cache that grows for ever ends up caching nothing.
+ * The stored route, or null if it is not one.
+ *
+ * The file outlives the code that wrote it: a browser keeps it across a
+ * deployment, so a record written by an older build is JSON that parses
+ * cleanly and means nothing. Taken on trust it becomes a leg with no duration
+ * and no distance, shown as a real measurement, and it would say so for a
+ * fortnight. Anything that does not answer the question is treated as a miss
+ * and asked again.
+ */
+function storedRoute(value: unknown): ResolvedRoute | null {
+  if (typeof value !== "object" || value === null) return null;
+  const route = value as Partial<ResolvedRoute>;
+  if (typeof route.durationMinutes !== "number" || !Number.isFinite(route.durationMinutes)) {
+    return null;
+  }
+  if (typeof route.distanceMeters !== "number" || !Number.isFinite(route.distanceMeters)) {
+    return null;
+  }
+  if (typeof route.transferCount !== "number" || !Number.isFinite(route.transferCount)) {
+    return null;
+  }
+  if (!Array.isArray(route.transitLines) || route.transitLines.some((l) => typeof l !== "string")) {
+    return null;
+  }
+  if (route.polyline !== undefined && typeof route.polyline !== "string") return null;
+  return route as ResolvedRoute;
+}
+
+/**
+ * Entries that can no longer be returned — too old, or not a route — are
+ * dropped whenever the file is rewritten. Left in place they would never be
+ * read again but would still take room, and the file only has so much: once
+ * the bucket is full every later write is refused, and a cache that grows for
+ * ever ends up caching nothing.
  */
 function prune(file: CacheFile, now: Date): CacheFile {
   const kept: CacheFile = {};
   for (const [key, entry] of Object.entries(file)) {
-    if (fresh(entry, now)) kept[key] = entry;
+    if (fresh(entry, now) && storedRoute(entry.route)) kept[key] = entry;
   }
   return kept;
 }
@@ -123,7 +153,10 @@ export function createPersistentRouteCache(
 
     if (durable) {
       const stored = read(storage)[key];
-      if (stored && fresh(stored, clock())) return stored.route;
+      if (stored && fresh(stored, clock())) {
+        const hit = storedRoute(stored.route);
+        if (hit) return hit;
+      }
     } else {
       const held = session.get(key);
       if (held) return held;

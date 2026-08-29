@@ -149,6 +149,21 @@ describe("seed data is presentable", () => {
   });
 
   /**
+   * The file a URL ultimately points at, whatever size was asked for.
+   *
+   * A Wikimedia thumbnail repeats the file name: the width goes on the last
+   * segment and the segment before it is the file itself. Comparing whole
+   * URLs would call 500px and 1280px of one photograph two photographs, which
+   * is exactly how the same picture ends up under two names unnoticed.
+   */
+  function underlyingFile(url: string): string {
+    const segments = url.split("?")[0]!.split("/");
+    const last = segments.length - 1;
+    const file = url.includes("/thumb/") && last >= 1 ? segments[last - 1]! : segments[last]!;
+    return decodeURIComponent(file).toLowerCase();
+  }
+
+  /**
    * A named list only catches the wrong photographs somebody has already
    * noticed. One file hung under two names catches them by construction: two
    * places are not the same place, so at most one of the two captions is
@@ -159,12 +174,11 @@ describe("seed data is presentable", () => {
       const shownBy = new Map<string, string>();
       for (const place of dataset.attractions(dates)) {
         for (const url of place.photoUrls) {
-          const file = url.split("?")[0]!;
+          const file = underlyingFile(url);
           const owner = shownBy.get(file);
-          expect(
-            owner ?? place.name,
-            `${place.name} and ${owner} both show ${decodeURIComponent(file).split("/").pop()}`,
-          ).toBe(place.name);
+          expect(owner ?? place.name, `${place.name} and ${owner} both show ${file}`).toBe(
+            place.name,
+          );
           shownBy.set(file, place.name);
         }
       }

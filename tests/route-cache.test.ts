@@ -120,6 +120,51 @@ describe("across reloads", () => {
 });
 
 /**
+ * The file outlives the code that wrote it. A browser keeps it across a
+ * deployment, so a record written by last week's build — or by anything else
+ * that got at the key — is JSON that parses cleanly and means nothing. Read
+ * without checking, it becomes a leg with no duration and no distance, and
+ * every plan carries it until the entry ages out a fortnight later.
+ */
+describe("a record it did not write", () => {
+  const poison = (route: unknown) =>
+    memory({
+      [ROUTE_CACHE_KEY]: JSON.stringify({
+        [cacheKey(REQUEST)]: { savedAt: NOW.toISOString(), route },
+      }),
+    });
+
+  test("re-resolves when the stored route is the wrong shape", async () => {
+    const storage = poison({ durationMinutes: "twelve", distanceMeters: 2400 });
+    const inner = vi.fn(async () => route);
+
+    const got = await createPersistentRouteCache(inner, storage, () => NOW)(REQUEST);
+
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(got).toEqual(route);
+  });
+
+  test("re-resolves when the stored route is missing outright", async () => {
+    const storage = poison(undefined);
+    const inner = vi.fn(async () => route);
+
+    const got = await createPersistentRouteCache(inner, storage, () => NOW)(REQUEST);
+
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(got).toEqual(route);
+  });
+
+  test("re-resolves when a transit route has lost its lines", async () => {
+    const storage = poison({ durationMinutes: 12, distanceMeters: 2400, transferCount: 0 });
+    const inner = vi.fn(async () => route);
+
+    await createPersistentRouteCache(inner, storage, () => NOW)(REQUEST);
+
+    expect(inner).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
  * A transit answer with no departure describes the timetable at the moment it
  * was asked. Kept for a fortnight it would tell a traveller about lines,
  * changes and durations that are not running on their trip — which is the
