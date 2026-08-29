@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useItineraryAgent } from "@/agent/adapter";
 import { harnessStatus } from "@/agent/client";
 import { tripDates as datesForTrip } from "@/planner/build";
-import { SEED_CENTER } from "@/data/seed-tokyo";
 import { focusCenter } from "@/lib/bounds";
+import { datasetFor } from "@/data/datasets";
 import CandidateList from "@/components/CandidateList";
 import DayTabs from "@/components/DayTabs";
 import DegradedBanner from "@/components/DegradedBanner";
@@ -69,19 +69,25 @@ export default function App() {
     [workspace.restaurants, selection],
   );
 
-  // Live research can return any city, so the map opens on whatever was found
-  // and only falls back to the seed city while there is nothing to show.
-  const mapCenter = useMemo(
-    () =>
-      focusCenter(
-        [
-          ...workspace.attractions.map((a) => a.location),
-          ...workspace.restaurants.map((r) => r.location),
-        ],
-        SEED_CENTER,
-      ),
-    [workspace.attractions, workspace.restaurants],
-  );
+  /**
+   * Where to open the map, or null while that is not yet known.
+   *
+   * A covered city is known before anything is researched, so its map opens
+   * there directly. Anywhere else has no centre until candidates come back.
+   * Returning null rather than a default is deliberate: defaulting showed a
+   * city the traveller had not asked for, and then jumped, which reads as a
+   * bug even though it corrects itself.
+   */
+  const mapCenter = useMemo(() => {
+    const covered = workspace.trip ? datasetFor(workspace.trip.destination) : null;
+    if (covered) return covered.center;
+
+    const points = [
+      ...workspace.attractions.map((a) => a.location),
+      ...workspace.restaurants.map((r) => r.location),
+    ];
+    return points.length > 0 ? focusCenter(points, points[0]!) : null;
+  }, [workspace.trip, workspace.attractions, workspace.restaurants]);
 
   const selectedLeg = useMemo(() => {
     const current = workspace.plan;
@@ -277,6 +283,7 @@ export default function App() {
         </section>
 
         <section className="relative min-w-0 flex-1">
+          {mapCenter ? (
           <MapView
             center={mapCenter}
             attractions={workspace.attractions}
@@ -287,6 +294,19 @@ export default function App() {
             onSelect={setSelection}
             onTileError={handleTileError}
           />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-hairline/40">
+              <div className="text-center">
+                <div
+                  aria-hidden
+                  className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-hairline border-t-ink"
+                />
+                <p className="mt-3 text-[12px] text-muted">
+                  Finding {workspace.trip?.destination ?? "your destination"}…
+                </p>
+              </div>
+            </div>
+          )}
           {selectedLeg && (
             <div className="pointer-events-none absolute inset-y-0 right-0 z-[400] flex items-end p-3">
               <div className="pointer-events-auto">

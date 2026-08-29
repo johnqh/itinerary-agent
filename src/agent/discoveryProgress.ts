@@ -45,10 +45,14 @@ export function createProgressTracker(): ProgressTracker {
         return lookups > 0
           ? `Searching sources (${lookups} lookups)`
           : "Searching sources";
-      case "researching":
-        return spawned > 0
-          ? `Researching details (${spawned} researchers, ${completed} done)`
-          : "Researching details";
+      case "researching": {
+        if (spawned === 0) return "Researching details";
+        // The lookup count is the only part that moves while a researcher is
+        // still working. Without it the label sits unchanged for minutes and
+        // an ordinary long run is indistinguishable from a hang.
+        const who = `${spawned} researcher${spawned === 1 ? "" : "s"}`;
+        return `Researching details (${who}, ${completed} done, ${lookups} lookups)`;
+      }
       case "complete":
         return "Research complete";
     }

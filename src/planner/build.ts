@@ -254,6 +254,7 @@ function assembleDays(input: AssembleInput): {
   const scheduled = new Set<string>();
   const days: PlanDay[] = [];
   const unplacedMeals: UnplacedMeal[] = [];
+  const usedRestaurants = new Set<string>();
 
   input.dates.forEach((date, index) => {
     const pool = (input.clustersByDate[index] ?? []).filter((a) => !scheduled.has(a.id));
@@ -269,10 +270,12 @@ function assembleDays(input: AssembleInput): {
       spillover,
       restaurants: input.restaurants,
       ratings: input.ratings,
+      usedRestaurantIds: [...usedRestaurants],
     });
 
     for (const item of result.day.items) {
       if (item.kind === "attraction") scheduled.add(item.refId);
+      if (item.kind === "meal") usedRestaurants.add(item.refId);
     }
     unplacedMeals.push(...result.unplacedMeals);
     days.push(result.day);
@@ -284,6 +287,13 @@ function assembleDays(input: AssembleInput): {
 interface BuildDayInput {
   date: string;
   trip: TripRequest;
+  /**
+   * Restaurants already used earlier in the trip. Eating at the same place
+   * twice is a worse itinerary than eating somewhere merely nearer, so these
+   * are avoided — but only while there is an alternative, since a repeat venue
+   * still beats a day with no dinner.
+   */
+  usedRestaurantIds: string[];
   /** This day's own cluster. Always filled before spillover. */
   pool: Attraction[];
   spillover: Attraction[];
@@ -295,7 +305,7 @@ interface BuildDayInput {
 const MEAL_SETTLE_PASSES = 3;
 
 function buildDay(input: BuildDayInput): DayResult {
-  const { date, trip, pool, spillover, restaurants, ratings } = input;
+  const { date, trip, pool, spillover, restaurants, ratings, usedRestaurantIds } = input;
   const isCarDay = trip.hasRentalCar;
   const budget = MAX_ATTRACTIONS_PER_DAY[trip.pace];
 
@@ -372,7 +382,7 @@ function buildDay(input: BuildDayInput): DayResult {
     null,
     "lunch",
     { start: lunchStart, end: lunchEnd },
-    [],
+    usedRestaurantIds,
   );
   commit(taken, morning.filled);
 
@@ -381,7 +391,9 @@ function buildDay(input: BuildDayInput): DayResult {
     morning.placement.spot?.location ?? morning.filled.endPosition,
     "dinner",
     { start: dinnerStart, end: dinnerEnd },
-    morning.placement.spot ? [morning.placement.spot.id] : [],
+    morning.placement.spot
+      ? [...usedRestaurantIds, morning.placement.spot.id]
+      : usedRestaurantIds,
   );
   commit(taken, afternoon.filled);
 
@@ -569,6 +581,11 @@ function nearest(pool: Restaurant[], near: LatLng): Restaurant {
 function pickRestaurant(input: PickRestaurantInput): MealPlacement {
   const { restaurants, date, meal, window, excludeIds } = input;
 
+  // Somewhere new is preferred, but a city with few restaurants must still be
+  // able to feed the traveller: if excluding what the trip already used leaves
+  // nothing, the exclusion is dropped rather than the meal.
+  const withoutExclusions = { ...input, excludeIds: [] as string[] };
+
   // Being open on the date is not enough: the restaurant must be open for the
   // meal itself, or the itinerary seats lunch at a place that opens for dinner.
   const usable = restaurants.filter(
@@ -577,6 +594,10 @@ function pickRestaurant(input: PickRestaurantInput): MealPlacement {
       openDuring(r.hoursByDate[date], window.start, window.end) !== "closed",
   );
   if (usable.length === 0) {
+    // Nothing left once the trip's earlier meals are excluded. A repeat venue
+    // is a worse itinerary; a missing dinner is a gap in the day. Take the
+    // repeat.
+    if (excludeIds.length > 0) return pickRestaurant(withoutExclusions);
     return {
       spot: null,
       reason: `No restaurant is known to be open for ${meal} on ${date}.`,
@@ -591,7 +612,9 @@ function pickRestaurant(input: PickRestaurantInput): MealPlacement {
   if (preferred.spot) return preferred;
 
   const fallback = chooseRestaurant(usable, input);
-  if (!fallback.spot) return fallback;
+  if (!fallback.spot) {
+    return excludeIds.length > 0 ? pickRestaurant(withoutExclusions) : fallback;
+  }
 
   const unconfirmed = `Opening hours for ${fallback.spot.name} on ${date} were never confirmed; check before you go.`;
   return {

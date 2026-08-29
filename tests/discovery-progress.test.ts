@@ -39,6 +39,19 @@ describe("createProgressTracker", () => {
     expect(progress?.label).toMatch(/2 researchers/);
   });
 
+  test("keeps reporting lookups while a researcher is still working", () => {
+    // A subagent can run for minutes before it reports back. Showing only
+    // "1 researcher, 0 done" for that whole time reads as a hang, even though
+    // the tool calls underneath are ticking along.
+    const tracker = createProgressTracker();
+    tracker.start();
+    tracker.handle("thread.created");
+    tracker.handle("tool.response");
+    const progress = tracker.handle("tool.response");
+    expect(progress?.label).toMatch(/1 researcher/);
+    expect(progress?.label).toMatch(/2 lookups/);
+  });
+
   test("never goes backwards when a later stage's event arrives first", () => {
     const tracker = createProgressTracker();
     tracker.start();

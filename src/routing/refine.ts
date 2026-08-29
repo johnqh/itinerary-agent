@@ -7,7 +7,6 @@ import {
   walkThresholdMinutes,
 } from "@/planner/transport";
 import {
-  cacheKey,
   resolveRoute,
   type ResolvedRoute,
   type RouteRequest,
@@ -145,21 +144,3 @@ export async function resolveLeg(
   return toLeg("transit", transit);
 }
 
-/**
- * A per-session route cache. Replanning re-resolves the same legs constantly,
- * and a leg's travel time does not change between two clicks.
- */
-export function createCachedResolver(inner: RouteResolver = resolveRoute): RouteResolver {
-  const cache = new Map<string, Promise<ResolvedRoute>>();
-  return (request) => {
-    const key = cacheKey(request);
-    const hit = cache.get(key);
-    if (hit) return hit;
-    const pending = inner(request);
-    cache.set(key, pending);
-    // A failure must not be cached: the next attempt may be after the key is
-    // fixed or the network returns.
-    void pending.catch(() => cache.delete(key));
-    return pending;
-  };
-}

@@ -10,9 +10,10 @@ import type {
   TripRequest,
 } from "@/types/workspace";
 import { DAY_END_MINUTES, inMealWindow, openDuring, parseClock, toClock } from "@/planner/time";
-import { createCachedResolver, resolveLeg, type RouteResolver } from "@/routing/refine";
+import { resolveLeg, type RouteResolver } from "@/routing/refine";
 import { resolveRoute } from "@/routing/googleRoutes";
 import { departureInstant } from "@/routing/departure";
+import { browserCacheStorage, createPersistentRouteCache } from "@/routing/routeCache";
 
 /**
  * Replaces a plan's estimated legs with measured ones.
@@ -35,6 +36,18 @@ import { departureInstant } from "@/routing/departure";
  * drop is the scheduler's job. It says so instead, because a plan the traveller
  * can see is broken beats one that is broken quietly.
  */
+
+/**
+ * One cache for the life of the page, not one per plan.
+ *
+ * Built here rather than as a default argument: a default is evaluated on every
+ * call, so each replan was getting an empty cache and paying for every leg
+ * again.
+ */
+const sharedResolver: RouteResolver = createPersistentRouteCache(
+  resolveRoute,
+  browserCacheStorage(),
+);
 
 export interface RefineContext {
   trip: TripRequest;
@@ -100,13 +113,6 @@ function placesFor(day: PlanDay, context: RefineContext): Map<string, { name: st
   return places;
 }
 
-/**
- * One cache for the life of the module, which in a browser is the life of the
- * session. Building it per call would give every replan a cold cache and pay
- * Google again for legs whose travel time cannot have changed between two
- * clicks — which is the whole point of caching them.
- */
-const sessionResolver: RouteResolver = createCachedResolver(resolveRoute);
 
 /** 23:59. The clock grammar has no way to write a later minute of the same day. */
 const LAST_MINUTE_OF_DAY = 23 * 60 + 59;
@@ -114,7 +120,7 @@ const LAST_MINUTE_OF_DAY = 23 * 60 + 59;
 export async function refinePlanRoutes(
   plan: Plan,
   context: RefineContext,
-  resolver: RouteResolver = sessionResolver,
+  resolver: RouteResolver = sharedResolver,
 ): Promise<RefineResult> {
   const positions = positionsFor(context);
   let routeCalls = 0;

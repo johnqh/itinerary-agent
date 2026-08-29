@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { MODE_COLORS } from "@/lib/modes";
-import { categoryStyle, MEAL_STYLE } from "@/lib/categories";
 import { decodePolyline } from "@/routing/polyline";
+import { categoryStyle, MEAL_STYLE } from "@/lib/categories";
 import type {
   Attraction,
   LatLng,
@@ -220,12 +220,16 @@ export default function MapView({
               [to.lat, to.lng],
             ];
 
+      // Selecting one journey makes it the subject; the rest of the day stays
+      // visible but recedes, the same way an off-day pin does.
+      const anotherLegSelected = selection?.kind === "leg" && !selected;
+
       L.polyline(path, {
         color: MODE_COLORS[leg.mode],
-        weight: selected ? 8 : 5,
-        opacity: selected ? 1 : 0.8,
-        // A dashed line means the travel time is modelled, not measured.
-        dashArray: leg.estimated ? "6 7" : undefined,
+        weight: selected ? 7 : anotherLegSelected ? 3.5 : 4.5,
+        opacity: selected ? 1 : anotherLegSelected ? 0.55 : 0.85,
+        // Dashed means the geometry is a straight-line stand-in, not a route.
+        dashArray: shape.length >= 2 ? undefined : "6 7",
       })
         .bindTooltip(label, { sticky: true })
         .on("click", () => onSelect({ kind: "leg", date: day.date, fromIndex: leg.fromIndex }))
