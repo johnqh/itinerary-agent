@@ -20,3 +20,4 @@ sandbox-scratch/
 # The seed dataset is a committed artifact of this project, not local scratch.
 !src/data/
 !src/data/**
+tmp/

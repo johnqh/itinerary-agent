@@ -102,6 +102,42 @@ describe("only a restaurant that is shut at mealtimes", () => {
   });
 });
 
+describe("restaurants whose hours were never confirmed", () => {
+  // Unknown is not closed, so an unresolved restaurant can still be seated —
+  // but only when nothing confirmed can be, and never without saying so.
+  const nearUnknown: Restaurant = {
+    ...restaurant("r-unknown", 35.702, 139.772, ["local"]),
+    hoursByDate: { [DATES[0]!]: { status: "unknown" } },
+  };
+  const farConfirmed = restaurant("r-confirmed", 35.72, 139.79, ["local"]);
+
+  function lunchWith(restaurants: Restaurant[]) {
+    const plan = buildPlan({
+      trip: tripWith({ cuisines: [], strictness: "flexible" }),
+      attractions,
+      restaurants,
+      ratings: {},
+    });
+    return {
+      plan,
+      lunch: plan.days[0]!.items.find((i) => i.kind === "meal" && i.meal === "lunch"),
+    };
+  }
+
+  test("prefers a confirmed restaurant over a nearer one with unresolved hours", () => {
+    const { lunch } = lunchWith([nearUnknown, farConfirmed]);
+    expect(lunch?.refId).toBe("r-confirmed");
+    expect(lunch?.notes ?? "").not.toMatch(/hours/i);
+  });
+
+  test("seats an unconfirmed restaurant when nothing else can be, and names it", () => {
+    const { lunch } = lunchWith([nearUnknown]);
+    expect(lunch?.refId).toBe("r-unknown");
+    expect(lunch?.notes).toMatch(/hours/i);
+    expect(lunch?.notes).toMatch(/not confirmed|never confirmed|unconfirmed/i);
+  });
+});
+
 describe("meal strictness", () => {
   // The nearest restaurant does not match; the nearest match is a short drive
   // away. Each cuisine has a second, clearly more distant option so that "the

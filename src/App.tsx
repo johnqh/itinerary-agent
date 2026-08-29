@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useItineraryAgent } from "@/agent/adapter";
+import { harnessStatus } from "@/agent/client";
 import { tripDates as datesForTrip } from "@/planner/build";
 import { SEED_CENTER } from "@/data/seed-tokyo";
+import { focusCenter } from "@/lib/bounds";
 import CandidateList from "@/components/CandidateList";
 import DayTabs from "@/components/DayTabs";
 import DegradedBanner from "@/components/DegradedBanner";
@@ -21,6 +23,19 @@ export default function App() {
   // Map tiles are the one dependency the adapter cannot observe: only the
   // component that mounts Leaflet learns the provider stopped answering.
   const [mapNotice, setMapNotice] = useState<string | null>(null);
+
+  // Asked once on mount so the setup form can tell the truth about whether a
+  // destination other than the seed city can actually be researched.
+  const [liveResearch, setLiveResearch] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void harnessStatus().then((status) => {
+      if (!cancelled) setLiveResearch(status.available);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const dates = useMemo(
     () => (workspace.trip ? datesForTrip(workspace.trip) : []),
@@ -43,6 +58,20 @@ export default function App() {
     [workspace.restaurants, selection],
   );
 
+  // Live research can return any city, so the map opens on whatever was found
+  // and only falls back to the seed city while there is nothing to show.
+  const mapCenter = useMemo(
+    () =>
+      focusCenter(
+        [
+          ...workspace.attractions.map((a) => a.location),
+          ...workspace.restaurants.map((r) => r.location),
+        ],
+        SEED_CENTER,
+      ),
+    [workspace.attractions, workspace.restaurants],
+  );
+
   const degraded = useMemo(
     () => ({ ...workspace.degraded, map: mapNotice }),
     [workspace.degraded, mapNotice],
@@ -51,7 +80,7 @@ export default function App() {
   const handleTileError = useCallback((notice: string) => setMapNotice(notice), []);
 
   if (!workspace.trip) {
-    return <TripForm onSubmit={agent.createTrip} />;
+    return <TripForm onSubmit={agent.createTrip} liveResearch={liveResearch} />;
   }
 
   const plan = workspace.plan;
@@ -60,29 +89,34 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-4 border-b border-neutral-200 bg-white px-4 py-3">
-        <div>
-          <h1 className="text-sm font-semibold">{workspace.trip.destination}</h1>
-          <p className="text-xs text-neutral-500">
-            {workspace.trip.startDate} to {workspace.trip.endDate} · {workspace.trip.pace}
+      <header className="flex items-center justify-between gap-4 border-b border-hairline bg-surface px-4 py-2.5">
+        <div className="min-w-0">
+          <span className="eyebrow">
+            {dates.length} day{dates.length === 1 ? "" : "s"} · {workspace.trip.pace}
             {workspace.trip.hasRentalCar ? " · rental car" : ""}
-          </p>
+          </span>
+          <h1 className="truncate text-[17px] font-semibold leading-tight tracking-[-0.01em]">
+            {workspace.trip.destination}
+          </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="tabular hidden text-[11px] text-muted sm:block">
+            {workspace.trip.startDate} → {workspace.trip.endDate}
+          </span>
           {workspace.phase === "rating" && (
             <button
               type="button"
               onClick={agent.submitRatings}
-              className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white"
+              className="rounded-md bg-ink px-3 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
             >
-              Generate plan
+              Plan these days
             </button>
           )}
           {workspace.phase === "ready" && (
             <button
               type="button"
               onClick={agent.replan}
-              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium"
+              className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-[13px] font-medium transition-colors hover:border-ink"
             >
               Plan again
             </button>
@@ -93,13 +127,30 @@ export default function App() {
       <DegradedBanner degraded={degraded} />
 
       {busy && workspace.progress && (
-        <div className="border-b border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-600">
-          {workspace.progress.label}… ({workspace.progress.done}/{workspace.progress.total})
+        <div
+          className="border-b border-hairline bg-surface px-4 py-2"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12px] text-ink">{workspace.progress.label}</span>
+            <span className="tabular text-[11px] text-muted">
+              step {workspace.progress.done} of {workspace.progress.total}
+            </span>
+          </div>
+          <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-hairline">
+            <div
+              className="h-full rounded-full bg-transit transition-[width] duration-500"
+              style={{
+                width: `${Math.round((workspace.progress.done / Math.max(workspace.progress.total, 1)) * 100)}%`,
+              }}
+            />
+          </div>
         </div>
       )}
 
       <div className="flex min-h-0 flex-1">
-        <section className="flex w-[26rem] shrink-0 flex-col gap-3 overflow-y-auto border-r border-neutral-200 bg-neutral-50 p-3">
+        <section className="flex w-[27rem] shrink-0 flex-col gap-3 overflow-y-auto border-r border-hairline bg-canvas p-3">
           {plan && (
             <>
               <DayTabs
@@ -117,18 +168,37 @@ export default function App() {
                   onSelect={setSelection}
                 />
               )}
-              <p className="text-xs text-neutral-500">
-                {plan.summary} Version {plan.version}. {plan.diagnostics.included} of{" "}
-                {plan.diagnostics.considered} candidates scheduled.
-              </p>
+              <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-hairline bg-hairline">
+                <div className="bg-surface px-2.5 py-1.5">
+                  <dt className="eyebrow">Stops</dt>
+                  <dd className="tabular text-[13px]">
+                    {plan.diagnostics.included}/{plan.diagnostics.considered}
+                  </dd>
+                </div>
+                <div className="bg-surface px-2.5 py-1.5">
+                  <dt className="eyebrow">Travel</dt>
+                  <dd className="tabular text-[13px]">
+                    {Math.round(plan.diagnostics.transportMinutes / 6) / 10}h
+                  </dd>
+                </div>
+                <div className="bg-surface px-2.5 py-1.5">
+                  <dt className="eyebrow">Version</dt>
+                  <dd className="tabular text-[13px]">{plan.version}</dd>
+                </div>
+              </dl>
             </>
           )}
 
           {workspace.attractions.length > 0 && (
             <>
-              <h2 className="pt-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
-                {plan ? "Adjust interest and plan again" : "Rate what interests you"}
-              </h2>
+              <div className="flex items-baseline justify-between gap-2 pt-1">
+                <h2 className="eyebrow">
+                  {plan ? "Adjust interest, then plan again" : "Rate what interests you"}
+                </h2>
+                <span className="tabular text-[11px] text-muted">
+                  {workspace.attractions.length} found
+                </span>
+              </div>
               <CandidateList
                 attractions={workspace.attractions}
                 ratings={workspace.ratings}
@@ -144,7 +214,7 @@ export default function App() {
 
         <section className="relative min-w-0 flex-1">
           <MapView
-            center={SEED_CENTER}
+            center={mapCenter}
             attractions={workspace.attractions}
             restaurants={workspace.restaurants}
             day={day}

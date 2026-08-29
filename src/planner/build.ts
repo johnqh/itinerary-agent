@@ -564,18 +564,56 @@ function nearest(pool: Restaurant[], near: LatLng): Restaurant {
  * not detour for cuisine, `prefer` detours when a match is open and says so
  * when it settles, and `strong` treats the cuisine as a constraint and would
  * rather report a missing meal than serve the wrong one.
+ *
+ * Hours come before all of that. A restaurant confirmed open for the meal is
+ * always preferred over one whose hours nobody resolved, however near or well
+ * matched the unresolved one is; an unresolved one is seated only when it is
+ * that or no meal, and then the item says the hours were never confirmed.
+ * Unknown is not a licence to invent an opening time, and it is not a closure
+ * either — treating it as one would leave most live-researched days with no
+ * lunch at all.
  */
 function pickRestaurant(input: PickRestaurantInput): MealPlacement {
-  const { restaurants, near, date, meal, window, meals, excludeIds } = input;
+  const { restaurants, date, meal, window, excludeIds } = input;
 
   // Being open on the date is not enough: the restaurant must be open for the
   // meal itself, or the itinerary seats lunch at a place that opens for dinner.
-  const open = restaurants.filter(
+  const usable = restaurants.filter(
     (r) =>
       !excludeIds.includes(r.id) &&
       openDuring(r.hoursByDate[date], window.start, window.end) !== "closed",
   );
-  if (open.length === 0) {
+  if (usable.length === 0) {
+    return {
+      spot: null,
+      reason: `No restaurant is known to be open for ${meal} on ${date}.`,
+    };
+  }
+
+  const confirmed = usable.filter(
+    (r) => openDuring(r.hoursByDate[date], window.start, window.end) === "open",
+  );
+
+  const preferred = chooseRestaurant(confirmed, input);
+  if (preferred.spot) return preferred;
+
+  const fallback = chooseRestaurant(usable, input);
+  if (!fallback.spot) return fallback;
+
+  const unconfirmed = `Opening hours for ${fallback.spot.name} on ${date} were never confirmed; check before you go.`;
+  return {
+    ...fallback,
+    note: fallback.note ? `${fallback.note} ${unconfirmed}` : unconfirmed,
+  };
+}
+
+/** The cuisine half of the decision, over whichever pool it is handed. */
+function chooseRestaurant(
+  pool: Restaurant[],
+  input: PickRestaurantInput,
+): MealPlacement {
+  const { near, date, meal, meals } = input;
+  if (pool.length === 0) {
     return {
       spot: null,
       reason: `No restaurant is known to be open for ${meal} on ${date}.`,
@@ -583,9 +621,9 @@ function pickRestaurant(input: PickRestaurantInput): MealPlacement {
   }
 
   const wanted = meals.cuisines;
-  if (wanted.length === 0) return { spot: nearest(open, near) };
+  if (wanted.length === 0) return { spot: nearest(pool, near) };
 
-  const matching = open.filter((r) => matchesCuisine(r, wanted));
+  const matching = pool.filter((r) => matchesCuisine(r, wanted));
   const wantedLabel = wanted.join(" or ");
 
   if (meals.strictness === "strong") {
@@ -601,13 +639,13 @@ function pickRestaurant(input: PickRestaurantInput): MealPlacement {
   if (meals.strictness === "prefer") {
     if (matching.length > 0) return { spot: nearest(matching, near) };
     return {
-      spot: nearest(open, near),
+      spot: nearest(pool, near),
       note: `No ${wantedLabel} option was open for ${meal} nearby; this is the closest alternative.`,
     };
   }
 
   // flexible: cuisine is a nice-to-have and never worth a detour.
-  return { spot: nearest(open, near) };
+  return { spot: nearest(pool, near) };
 }
 
 function buildLegs(

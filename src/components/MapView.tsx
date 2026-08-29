@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { MODE_COLORS } from "@/lib/modes";
+import { boundsOf } from "@/lib/bounds";
 import type {
   Attraction,
   LatLng,
@@ -10,6 +11,7 @@ import type {
 } from "@/types/workspace";
 
 interface Props {
+  /** Where the map opens. Afterwards it follows the markers themselves. */
   center: LatLng;
   attractions: Attraction[];
   restaurants: Restaurant[];
@@ -51,10 +53,14 @@ export default function MapView({
   const onTileErrorRef = useRef(onTileError);
   onTileErrorRef.current = onTileError;
 
+  // The opening view only. A later centre arrives as a fit to the markers
+  // rather than as a rebuilt map, which would throw away the traveller's zoom.
+  const initialCenter = useRef(center).current;
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, { zoomControl: true }).setView(
-      [center.lat, center.lng],
+      [initialCenter.lat, initialCenter.lng],
       12,
     );
     const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -79,7 +85,41 @@ export default function MapView({
       mapRef.current = null;
       layerRef.current = null;
     };
-  }, [center.lat, center.lng]);
+  }, [initialCenter]);
+
+  /**
+   * Frames whatever was discovered.
+   *
+   * Keyed on which places are on the map, not on every render: refitting on a
+   * selection or a replan would yank the view out from under someone who had
+   * just panned it. A new set of candidates — a live run for another city —
+   * is exactly when the view should move.
+   */
+  const fittedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const key = [
+      ...attractions.map((a) => a.id),
+      ...restaurants.map((r) => r.id),
+    ].join("|");
+    if (key === fittedRef.current) return;
+
+    const bounds = boundsOf([
+      ...attractions.map((a) => a.location),
+      ...restaurants.map((r) => r.location),
+    ]);
+    if (!bounds) return;
+
+    fittedRef.current = key;
+    map.fitBounds(
+      [
+        [bounds.south, bounds.west],
+        [bounds.north, bounds.east],
+      ],
+      { padding: [48, 48], maxZoom: 15 },
+    );
+  }, [attractions, restaurants]);
 
   useEffect(() => {
     const layer = layerRef.current;
@@ -153,7 +193,7 @@ export default function MapView({
 
   return (
     <div className="relative h-full w-full">
-      <div ref={containerRef} className="h-full w-full bg-neutral-200" />
+      <div ref={containerRef} className="h-full w-full bg-hairline" />
       {tilesFailed && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[400] p-2">
           <p className="pointer-events-auto rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow">

@@ -1,5 +1,7 @@
 import type { Hours, MealKind } from "@/types/workspace";
 
+const MINUTES_PER_DAY = 24 * 60;
+
 /** Default full-day planning window: 09:00 to 20:30. */
 export const DAY_START_MINUTES = 9 * 60;
 export const DAY_END_MINUTES = 20 * 60 + 30;
@@ -23,6 +25,10 @@ export type OpenCheck = "open" | "closed" | "unknown";
  * `unknown` is returned rather than assumed open: unresolved hours carry a
  * scoring penalty, while a known closure is a hard exclusion. Collapsing the
  * two would silently schedule visits to shut attractions.
+ *
+ * A closing clock at or before the opening one closes the next day: 18:00–02:00
+ * is one evening, not an empty interval. Both bounds are compared on the
+ * opening day's timeline, which is the only day this planner schedules into.
  */
 export function openDuring(
   hours: Hours | undefined,
@@ -32,7 +38,8 @@ export function openDuring(
   if (!hours || hours.status === "unknown") return "unknown";
   if (hours.status === "closed") return "closed";
   const open = toMinutes(hours.open);
-  const close = toMinutes(hours.close);
+  const closeClock = toMinutes(hours.close);
+  const close = closeClock <= open ? closeClock + MINUTES_PER_DAY : closeClock;
   return startMinutes >= open && endMinutes <= close ? "open" : "closed";
 }
 
