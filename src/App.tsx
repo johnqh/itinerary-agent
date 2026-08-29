@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useItineraryAgent } from "@/agent/adapter";
 import { tripDates as datesForTrip } from "@/planner/build";
 import { SEED_CENTER } from "@/data/seed-tokyo";
@@ -8,24 +8,47 @@ import DegradedBanner from "@/components/DegradedBanner";
 import DetailPanel from "@/components/DetailPanel";
 import Legend from "@/components/Legend";
 import MapView from "@/components/MapView";
+import RestaurantPanel from "@/components/RestaurantPanel";
 import Timeline from "@/components/Timeline";
 import TripForm from "@/components/TripForm";
+import type { Selection } from "@/types/workspace";
 
 export default function App() {
   const agent = useItineraryAgent();
   const { workspace } = agent;
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
+  // Map tiles are the one dependency the adapter cannot observe: only the
+  // component that mounts Leaflet learns the provider stopped answering.
+  const [mapNotice, setMapNotice] = useState<string | null>(null);
 
   const dates = useMemo(
     () => (workspace.trip ? datesForTrip(workspace.trip) : []),
     [workspace.trip],
   );
 
-  const selected = useMemo(
-    () => workspace.attractions.find((a) => a.id === selectedId) ?? null,
-    [workspace.attractions, selectedId],
+  const selectedAttraction = useMemo(
+    () =>
+      selection?.kind === "attraction"
+        ? (workspace.attractions.find((a) => a.id === selection.id) ?? null)
+        : null,
+    [workspace.attractions, selection],
   );
+
+  const selectedRestaurant = useMemo(
+    () =>
+      selection?.kind === "restaurant"
+        ? (workspace.restaurants.find((r) => r.id === selection.id) ?? null)
+        : null,
+    [workspace.restaurants, selection],
+  );
+
+  const degraded = useMemo(
+    () => ({ ...workspace.degraded, map: mapNotice }),
+    [workspace.degraded, mapNotice],
+  );
+
+  const handleTileError = useCallback((notice: string) => setMapNotice(notice), []);
 
   if (!workspace.trip) {
     return <TripForm onSubmit={agent.createTrip} />;
@@ -67,7 +90,7 @@ export default function App() {
         </div>
       </header>
 
-      <DegradedBanner degraded={workspace.degraded} />
+      <DegradedBanner degraded={degraded} />
 
       {busy && workspace.progress && (
         <div className="border-b border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-600">
@@ -90,7 +113,8 @@ export default function App() {
                   day={day}
                   attractions={workspace.attractions}
                   restaurants={workspace.restaurants}
-                  onSelect={setSelectedId}
+                  selection={selection}
+                  onSelect={setSelection}
                 />
               )}
               <p className="text-xs text-neutral-500">
@@ -110,8 +134,8 @@ export default function App() {
                 ratings={workspace.ratings}
                 tripDates={dates}
                 excludedIds={plan?.excludedAttractionIds ?? []}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
+                selection={selection}
+                onSelect={setSelection}
                 onRate={agent.setRating}
               />
             </>
@@ -125,17 +149,31 @@ export default function App() {
             restaurants={workspace.restaurants}
             day={day}
             excludedIds={plan?.excludedAttractionIds ?? []}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selection={selection}
+            onSelect={setSelection}
+            onTileError={handleTileError}
           />
-          {selected && (
+          {(selectedAttraction || selectedRestaurant) && (
             <div className="pointer-events-none absolute inset-y-0 right-0 z-[400] flex items-end p-3">
               <div className="pointer-events-auto">
-                <DetailPanel
-                  attraction={selected}
-                  tripDates={dates}
-                  onClose={() => setSelectedId(null)}
-                />
+                {selectedAttraction ? (
+                  <DetailPanel
+                    attraction={selectedAttraction}
+                    tripDates={dates}
+                    onClose={() => setSelection(null)}
+                  />
+                ) : (
+                  <RestaurantPanel
+                    restaurant={selectedRestaurant!}
+                    meal={
+                      day?.items.find(
+                        (i) => i.kind === "meal" && i.refId === selectedRestaurant!.id,
+                      )?.meal
+                    }
+                    tripDates={dates}
+                    onClose={() => setSelection(null)}
+                  />
+                )}
               </div>
             </div>
           )}

@@ -2,12 +2,17 @@ import type { DegradedState } from "@/types/workspace";
 
 /**
  * Names every degraded mode currently in effect. Silent degradation is the
- * failure this component exists to prevent.
+ * failure this component exists to prevent, so every field of `DegradedState`
+ * is listed here rather than a hand-picked subset.
  */
 export default function DegradedBanner({ degraded }: { degraded: DegradedState }) {
-  const notices = [degraded.discovery, degraded.routing, degraded.optimizer].filter(
-    (n): n is string => Boolean(n),
-  );
+  const notices = [
+    degraded.discovery,
+    degraded.routing,
+    degraded.optimizer,
+    degraded.meals,
+    degraded.map,
+  ].filter((n): n is string => Boolean(n));
   if (notices.length === 0) return null;
 
   return (

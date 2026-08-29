@@ -1,14 +1,21 @@
 import { MODE_COLORS, MODE_LABELS } from "@/lib/modes";
-import type { Attraction, PlanDay, Restaurant } from "@/types/workspace";
+import type { Attraction, PlanDay, Restaurant, Selection } from "@/types/workspace";
 
 interface Props {
   day: PlanDay;
   attractions: Attraction[];
   restaurants: Restaurant[];
-  onSelect: (id: string) => void;
+  selection: Selection | null;
+  onSelect: (selection: Selection) => void;
 }
 
-export default function Timeline({ day, attractions, restaurants, onSelect }: Props) {
+export default function Timeline({
+  day,
+  attractions,
+  restaurants,
+  selection,
+  onSelect,
+}: Props) {
   const names = new Map<string, string>();
   for (const a of attractions) names.set(a.id, a.name);
   for (const r of restaurants) names.set(r.id, r.name);
@@ -17,12 +24,16 @@ export default function Timeline({ day, attractions, restaurants, onSelect }: Pr
     <ol className="space-y-1">
       {day.items.map((item, index) => {
         const leg = day.legs.find((l) => l.fromIndex === index);
+        const kind = item.kind === "meal" ? "restaurant" : "attraction";
+        const selected = selection?.kind === kind && selection.id === item.refId;
         return (
           <li key={`${item.refId}-${item.startTime}`}>
             <button
               type="button"
-              onClick={() => onSelect(item.refId)}
-              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-left hover:border-neutral-400"
+              onClick={() => onSelect({ kind, id: item.refId })}
+              className={`w-full rounded-md border bg-white px-3 py-2 text-left hover:border-neutral-400 ${
+                selected ? "border-neutral-900" : "border-neutral-200"
+              }`}
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium">
@@ -34,6 +45,9 @@ export default function Timeline({ day, attractions, restaurants, onSelect }: Pr
               </div>
               {item.kind === "meal" && (
                 <span className="text-xs capitalize text-amber-700">{item.meal}</span>
+              )}
+              {item.notes && (
+                <p className="mt-0.5 text-xs text-neutral-500">{item.notes}</p>
               )}
             </button>
 

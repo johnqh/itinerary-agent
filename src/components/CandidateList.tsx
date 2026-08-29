@@ -1,13 +1,13 @@
 import RatingControl from "@/components/RatingControl";
-import type { Attraction, Rating } from "@/types/workspace";
+import type { Attraction, Rating, Selection } from "@/types/workspace";
 
 interface Props {
   attractions: Attraction[];
   ratings: Record<string, Rating>;
   tripDates: string[];
   excludedIds: string[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
+  selection: Selection | null;
+  onSelect: (selection: Selection) => void;
   onRate: (id: string, rating: Rating) => void;
 }
 
@@ -20,7 +20,7 @@ export default function CandidateList({
   ratings,
   tripDates,
   excludedIds,
-  selectedId,
+  selection,
   onSelect,
   onRate,
 }: Props) {
@@ -32,14 +32,14 @@ export default function CandidateList({
           <li
             key={attraction.id}
             className={`rounded-md border px-3 py-2 ${
-              selectedId === attraction.id
+              selection?.kind === "attraction" && selection.id === attraction.id
                 ? "border-neutral-900 bg-white"
                 : "border-neutral-200 bg-white"
             } ${excluded ? "opacity-60" : ""}`}
           >
             <button
               type="button"
-              onClick={() => onSelect(attraction.id)}
+              onClick={() => onSelect({ kind: "attraction", id: attraction.id })}
               className="w-full text-left"
             >
               <div className="flex items-baseline justify-between gap-2">

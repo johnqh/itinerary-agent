@@ -160,6 +160,17 @@ export interface Plan {
   diagnostics: PlannerDiagnostics;
 }
 
+/**
+ * What the workspace currently has open.
+ *
+ * Attraction ids and restaurant ids are separate namespaces, so a bare string
+ * cannot say which list to resolve it against; carrying the kind is what stops
+ * a meal click from silently resolving to nothing.
+ */
+export type Selection =
+  | { kind: "attraction"; id: string }
+  | { kind: "restaurant"; id: string };
+
 export type Phase = "setup" | "discovering" | "rating" | "planning" | "ready";
 
 export interface Progress {
