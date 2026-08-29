@@ -40,8 +40,28 @@ across subagents and optimization runs once, globally, as deterministic code.
 
 ## Development
 
+```bash
+bun install
+bun run dev        # workspace on http://localhost:5173
+bun run test       # unit and golden tests
+bun run typecheck
+bun run lint
+bun run build
+```
+
 Every change lands through a reviewed pull request. Direct pushes to `main` are
 not part of this project's workflow.
+
+### Layout
+
+| Path | Contents |
+|---|---|
+| `src/types/workspace.ts` | The data contract. Every shape crossing a boundary. |
+| `src/planner/` | Pure scheduling logic: scoring, transport rules, time windows, the greedy builder. |
+| `src/agent/adapter.ts` | The only harness-aware module. |
+| `src/components/` | Presentational workspace UI. |
+| `src/data/` | Offline seed dataset. |
+| `tests/` | Unit tests per module, plus a golden test over the seed data. |
 
 ## Qodo Code Review Evidence
 

@@ -189,7 +189,7 @@ provably optimal scheduling.
 
 ```
 ┌─────────────────────────────────────────────┐
-│ Web workspace (Next.js + Leaflet)           │  map, list, ratings,
+│ Web workspace (Vite + React + Leaflet)      │  map, list, ratings,
 │                                             │  date tabs, timeline
 ├─────────────────────────────────────────────┤
 │ Agent adapter hook (TypeScript)             │  turns in, state out
@@ -203,6 +203,11 @@ provably optimal scheduling.
 
 The workspace is presentational and holds no planning logic. The adapter is the
 only module that knows the harness exists. The agent holds all intelligence.
+
+A Vite single-page app is used rather than a server-rendered framework. The map
+and the restored session are both browser-only concerns, and server rendering
+them invites hydration mismatches that cost more to debug than the server render
+is worth here.
 
 ### 4.2 Data Contract
 
