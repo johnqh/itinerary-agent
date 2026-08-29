@@ -1,75 +1,148 @@
 # Itinerary Agent
 
-A trip-planning agent that turns a destination and a set of dates into a
-route-aware, day-by-day itinerary.
+Turns a destination and a set of dates into a route-aware, day-by-day itinerary.
 
 The agent researches candidate attractions with real web tools, stops for the
-traveler to rate what interests them, and then computes a multi-day schedule by
-writing and running its own optimizer in a sandbox. Transportation is planned,
-not assumed: walking, direct transit, rideshare, and rental-car days each have
-explicit rules.
+traveller to say what interests them, and then schedules the days by **writing a
+Python solver and running it in a sandbox**. Transport is planned rather than
+assumed: walking, direct transit, rideshare and rental-car days each have
+explicit rules, and a leg that breaks one is rejected rather than shown.
 
-## Status
+Built on [TrueForge](https://github.com/truefoundry/trueforge), the open-source
+agent harness.
 
-Design complete, implementation in progress. See
-[docs/plan.md](docs/plan.md) for the full requirements and technical design.
+## Quick start
 
-## How It Works
+```bash
+bun install
+bun run dev          # http://localhost:5173
+```
 
-1. **Discover.** Subagents fan out in parallel, one per candidate, and return
-   grounded records with coordinates, per-date opening hours, visit durations,
-   costs, ticket requirements, and source links.
-2. **Checkpoint.** The agent suspends. The traveler rates each candidate from
-   0 (not interested) to 4 (must see). Nothing is scheduled until they submit.
-3. **Plan.** A sandboxed solver assigns attractions to days and orders each day
-   under time-window constraints, then per-date subagents resolve the route legs.
+That is the whole setup. The app runs **offline against a committed dataset**,
+needs no API key, and plans a trip instantly. Every screen states which mode it
+is in.
 
-The governing design principle is that subagents fan out on I/O while the
-sandbox centralizes the math. Language models are good at extracting facts from
-messy pages and poor at constraint satisfaction, so research is parallelized
-across subagents and optimization runs once, globally, as deterministic code.
+### Running it for real
 
-## Architecture
+Live research and sandboxed scheduling need the harness and a model provider:
 
-| Layer | Responsibility |
+```bash
+npx @truefoundry/trueforge@latest      # harness on :8790
+cp .env.example .env                   # add OPENAI_API_KEY, optionally BRIGHT_DATA_API_TOKEN
+bun run setup:harness                  # registers the provider and connector, then verifies both
+bun run dev
+```
+
+Then tick **"Research this destination live"** in trip setup. It is off by
+default because a real research run takes several minutes.
+
+`.env` is gitignored and the setup script never prints a credential.
+
+## The three phases
+
+1. **Discover.** An orchestrator searches with web-data MCP tools and delegates
+   to research subagents, returning grounded records: coordinates, opening hours
+   resolved *per trip date*, visit durations, costs, ticket requirements and
+   source links.
+2. **Rate.** Nothing is scheduled until the traveller rates the candidates from
+   0 (not interested) to 4 (must see).
+3. **Schedule.** The agent writes a solver, runs it in the sandbox, and iterates
+   when a day comes back infeasible. Its answer is then validated before use.
+
+The governing principle: **subagents fan out on I/O, the sandbox centralises the
+math.** Language models are good at pulling facts out of messy pages and bad at
+constraint satisfaction, so research is parallelised across subagents while
+scheduling runs once, globally, as code.
+
+## Harness capabilities, and where they live
+
+| Capability | Where | Status |
+|---|---|---|
+| Real MCP tools | `src/agent/discovery.ts`, `scripts/setup-harness.ts` | **Verified.** A live Kyoto run returned 14 attractions and 7 restaurants, 3 sources each. |
+| Subagents | `src/agent/discovery.ts`, `discoveryProgress.ts` | **Verified.** Runs spawned 2–3 researchers; fan-out is tracked from `thread.created` / `thread.done`. |
+| Sandboxed code execution | `src/agent/optimizer.ts`, `optimizerAgent.ts` | **Partly verified.** The sandbox runs Python on the harness's local fallback with no Daytona account. The optimizer provisioned a sandbox and ran its solver four times before the OpenAI account hit its spend limit; it has not yet completed a full run. |
+| Human checkpoint | `src/agent/adapter.ts`, `src/components/CandidateList.tsx` | **Verified at the product level** — discovery stops and nothing is scheduled until ratings are submitted. The harness-native `ask_user_question` suspension is **not built**. |
+| Persistent sessions | `src/agent/sessionStore.ts` | **Verified.** A reload restores the trip, candidates, ratings and plan. Harness-side turn resumption is not yet exercised. |
+
+Statuses are deliberately specific. Where something is unverified, this table
+says so rather than implying it works.
+
+## Design decisions worth arguing about
+
+**The agent's schedule is checked, not trusted.** `src/agent/planValidation.ts`
+enforces the rules that decide whether a day can be walked at all: items inside
+the day window and in order, no attraction scheduled twice or while closed, no
+transit leg with a transfer, no car day that also uses transit, and every gap
+between stops long enough to hold the journey between them. A schedule breaking
+any of them is rejected and the deterministic planner answers instead — worse,
+but real.
+
+**Nothing invents a fact.** An opening time that was not retrieved stays
+`unknown`; a guessed closing time sends someone to a locked door. With no
+routing provider connected, transit is reported unavailable rather than given a
+fabricated line and transfer count, and every travel time derived from
+straight-line estimates is flagged as estimated.
+
+**Degradation is never silent.** Seed data instead of live research, estimated
+travel times, the greedy planner instead of the sandbox, a meal that could not
+be seated, a map that failed to load — each names itself on screen.
+
+**Meals are anchors, not insertions.** Placing meals first and filling
+attractions around them makes "lunch at 16:00" unrepresentable rather than
+merely unlikely.
+
+## Layout
+
+| Path | Contents |
 |---|---|
-| Web workspace | Map, candidate list, ratings, date tabs, timeline. Presentational only. |
-| Adapter | The only harness-aware module. Actions become turns; streamed events become state. |
-| Harness | Agent loop, sessions, human checkpoints, subagents, sandbox. |
-| Tools | Web-data MCP for research, routing data for travel legs, sandbox for the solver. |
+| `src/types/workspace.ts` | The data contract. Every shape that crosses a boundary. |
+| `src/agent/` | Everything harness-aware: client, discovery, optimizer, validation, session store. |
+| `src/planner/` | Pure scheduling logic: scoring, transport rules, time windows, greedy builder. |
+| `src/components/` | Presentational workspace. Holds no planning logic. |
+| `src/data/` | Offline dataset used when research is unavailable. |
+| `tests/` | Unit tests per module, plus a golden test over the offline dataset. |
+| `docs/plan.md` | Requirements and technical design. |
 
 ## Development
 
 ```bash
-bun install
-bun run dev        # workspace on http://localhost:5173
-bun run test       # unit and golden tests
+bun run test        # unit and golden tests
 bun run typecheck
 bun run lint
 bun run build
 ```
 
-Every change lands through a reviewed pull request. Direct pushes to `main` are
-not part of this project's workflow.
+Every change lands through a reviewed pull request; direct pushes to `main` are
+not part of this workflow.
 
-### Layout
+## Known limitations
 
-| Path | Contents |
-|---|---|
-| `src/types/workspace.ts` | The data contract. Every shape crossing a boundary. |
-| `src/planner/` | Pure scheduling logic: scoring, transport rules, time windows, the greedy builder. |
-| `src/agent/adapter.ts` | The only harness-aware module. |
-| `src/components/` | Presentational workspace UI. |
-| `src/data/` | Offline seed dataset. |
-| `tests/` | Unit tests per module, plus a golden test over the seed data. |
+- **No transit legs appear.** The no-transfer transit rule is implemented and
+  tested, but with no routing provider connected transit is always treated as
+  unavailable, so every non-walking leg is walk, rideshare or car.
+- **Travel times are straight-line estimates**, scaled for road distance. They
+  are labelled as estimates everywhere they appear.
+- **The offline dataset covers one city.** Any other destination needs live
+  research; the workspace says so rather than quietly showing the wrong city.
+- **Hours the agent could not confirm stay unknown**, and unknown hours carry a
+  scoring penalty rather than an assumption.
 
 ## Qodo Code Review Evidence
 
-Pull requests in this repository are reviewed automatically by Qodo Merge,
-configured in [.pr_agent.toml](.pr_agent.toml). Links to merged, reviewed pull
-requests are listed here as they land.
+Pull requests here are reviewed automatically by Qodo Merge, configured in
+[.pr_agent.toml](.pr_agent.toml) with review instructions pointed at this
+project's real failure modes — transfer-count violations, car/transit mixing,
+double-booked attractions, planning logic leaking into UI components, and
+silently swallowed errors.
 
-- _Populated as pull requests merge._
+Merged, reviewed pull requests:
+
+- [#2 — Foundation: data contract, planner logic, workspace](https://github.com/johnqh/itinerary-agent/pull/2)
+  — 13 findings raised and addressed, including a missing module that broke the
+  build on the pushed branch, meals seated at closed restaurants, and
+  attractions stranded on a single date.
+
+Further pull requests are listed as they merge.
 
 ## License
 
