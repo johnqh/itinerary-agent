@@ -319,7 +319,15 @@ export function useItineraryAgent(): ItineraryAgent {
    * to build a day, and routing every candidate pair to get them is quadratic;
    * routing the itinerary it chose is linear in its stops, and it is what turns
    * "rideshare, estimated" into "Muni N".
+   *
+   * Routing takes one provider round trip per leg and does not move the
+   * workspace out of `ready`, so "Plan again" stays live throughout. Only the
+   * newest refinement may write: an earlier one landing afterwards carries the
+   * previous itinerary's stops and travel times, and applying it under the
+   * newer plan's version number would show the traveller the plan they just
+   * replaced, labelled as the replan they asked for.
    */
+  const routeRunRef = useRef(0);
   const routePlan = useCallback(
     async (
       plan: Plan,
@@ -327,15 +335,27 @@ export function useItineraryAgent(): ItineraryAgent {
       attractions: Attraction[],
       restaurants: Restaurant[],
     ) => {
-      setWorkspace((w) => ({
+      const run = (routeRunRef.current += 1);
+      const isCurrent = () => run === routeRunRef.current;
+
+      commit(trip, (w) => ({
         ...w,
         progress: { label: "Finding the way between stops", done: 0, total: 1 },
       }));
 
       try {
-        const refined = await refinePlanRoutes(plan, { trip, attractions, restaurants });
-        setWorkspace((w) =>
-          w.plan
+        const refined = await refinePlanRoutes(plan, {
+          trip,
+          attractions,
+          restaurants,
+          // Known only for a covered city. Elsewhere the transit request goes
+          // undated and is answered for now, which is what it did before —
+          // never dated from this browser's zone, which would ask about the
+          // right clock reading in the wrong part of the world.
+          timeZone: datasetFor(trip.destination)?.timeZone,
+        });
+        commit(trip, (w) =>
+          w.plan && isCurrent()
             ? {
                 ...w,
                 plan: { ...refined.plan, version: w.plan.version },
@@ -345,17 +365,21 @@ export function useItineraryAgent(): ItineraryAgent {
             : w,
         );
       } catch (error) {
-        setWorkspace((w) => ({
-          ...w,
-          progress: null,
-          degraded: {
-            ...w.degraded,
-            routing: `${error instanceof Error ? error.message : "Routing failed."} Travel times are straight-line estimates.`,
-          },
-        }));
+        commit(trip, (w) =>
+          isCurrent()
+            ? {
+                ...w,
+                progress: null,
+                degraded: {
+                  ...w.degraded,
+                  routing: `${error instanceof Error ? error.message : "Routing failed."} Travel times are straight-line estimates.`,
+                },
+              }
+            : w,
+        );
       }
     },
-    [],
+    [commit],
   );
 
   /** Schedules with the local greedy builder, returning what it produced. */

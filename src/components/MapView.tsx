@@ -207,14 +207,14 @@ export default function MapView({
         ? `${leg.transitLines.join(" → ")} · ${leg.durationMinutes} min`
         : `${leg.mode} · ${leg.durationMinutes} min${leg.estimated ? " (estimated)" : ""}`;
 
-      // The path the provider actually returned, when there is one. A straight
-      // line between two stops would draw a route through the bay; falling back
-      // to it is only honest because such a leg is also drawn dashed, which is
-      // this map's way of saying the travel was modelled rather than measured.
-      const shape = leg.polyline ? decodePolyline(leg.polyline) : [];
-      const path: [number, number][] =
-        shape.length > 1
-          ? shape
+      // The provider answers with the shape of the journey, and the shape is
+      // what a traveller reads off a map: a straight line between two stops
+      // says they cross the water, when the route goes round by the bridge.
+      // Two endpoints is what an estimated leg has, and all it has.
+      const shape = decodePolyline(leg.polyline);
+      const path: L.LatLngExpression[] =
+        shape.length >= 2
+          ? shape.map((point) => [point.lat, point.lng])
           : [
               [from.lat, from.lng],
               [to.lat, to.lng],
@@ -229,7 +229,7 @@ export default function MapView({
         weight: selected ? 7 : anotherLegSelected ? 3.5 : 4.5,
         opacity: selected ? 1 : anotherLegSelected ? 0.55 : 0.85,
         // Dashed means the geometry is a straight-line stand-in, not a route.
-        dashArray: shape.length > 1 ? undefined : "6 7",
+        dashArray: shape.length >= 2 ? undefined : "6 7",
       })
         .bindTooltip(label, { sticky: true })
         .on("click", () => onSelect({ kind: "leg", date: day.date, fromIndex: leg.fromIndex }))
