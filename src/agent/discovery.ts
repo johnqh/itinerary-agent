@@ -45,7 +45,7 @@ export interface RunDiscoveryOptions {
 }
 
 /** Orchestrator: reasons about coverage and delegates. */
-const ORCHESTRATOR_MODEL = "openai/gpt-5-6-sol";
+const ORCHESTRATOR_MODEL = "openai/gpt-5-4-mini";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

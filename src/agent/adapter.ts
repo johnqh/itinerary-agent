@@ -16,6 +16,7 @@ import {
 import { seedAttractions, seedRestaurants } from "@/data/seed-tokyo";
 import { harnessStatus } from "@/agent/client";
 import { runLiveDiscovery } from "@/agent/discovery";
+import { OptimizerRejected, runSandboxOptimizer } from "@/agent/optimizer";
 
 /**
  * The adapter: the only module that knows how the agent is driven.
@@ -59,6 +60,9 @@ export function useItineraryAgent(): ItineraryAgent {
   // to, which is after the action that queued it has already moved on.
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
+
+  /** Whether this trip opted into agent-run research and scheduling. */
+  const liveRef = useRef(false);
 
   // Pure: state updaters must be free of side effects, or React's double
   // invocation in development silently counts every plan twice.
@@ -202,6 +206,7 @@ export function useItineraryAgent(): ItineraryAgent {
 
   const createTrip = useCallback(
     async (trip: TripRequest, options?: DiscoveryOptions) => {
+      liveRef.current = options?.live === true;
       setWorkspace({ ...EMPTY, trip, phase: "setup" });
       await runDiscovery(trip, options);
     },
@@ -216,15 +221,72 @@ export function useItineraryAgent(): ItineraryAgent {
     );
   }, []);
 
+  /** Schedules with the local greedy builder, saying why if it was a fallback. */
+  const planLocally = useCallback(
+    async (reason?: string) => {
+      await delay(STEP_DELAY_MS);
+      setWorkspace((current) => {
+        const next = runPlan(current);
+        return reason
+          ? { ...next, degraded: { ...next.degraded, optimizer: reason } }
+          : next;
+      });
+    },
+    [runPlan],
+  );
+
   const generatePlan = useCallback(async () => {
     setWorkspace((current) => ({
       ...current,
       phase: "planning",
       progress: { label: "Scheduling your days", done: 0, total: 1 },
     }));
-    await delay(STEP_DELAY_MS);
-    setWorkspace((current) => runPlan(current));
-  }, [runPlan]);
+
+    const current = workspaceRef.current;
+    if (!liveRef.current || !current.trip) {
+      await planLocally();
+      return;
+    }
+
+    try {
+      const outcome = await runSandboxOptimizer({
+        trip: current.trip,
+        dates: tripDates(current.trip),
+        attractions: current.attractions,
+        restaurants: current.restaurants,
+        ratings: current.ratings,
+        onProgress: (label) =>
+          setWorkspace((w) =>
+            w.phase === "planning" ? { ...w, progress: { label, done: 0, total: 1 } } : w,
+          ),
+      });
+
+      setWorkspace((w) => ({
+        ...w,
+        phase: "ready",
+        progress: null,
+        plan: { ...outcome.plan, version: (w.plan?.version ?? 0) + 1 },
+        degraded: {
+          ...w.degraded,
+          routing: ESTIMATE_NOTICE,
+          // The schedule came from code the agent wrote and ran, so there is
+          // no optimizer shortfall to report.
+          optimizer: null,
+          meals: w.trip ? mealNotice(outcome.plan, w.trip.meals) : null,
+        },
+      }));
+    } catch (error) {
+      // A rejected schedule is not a crash: the deterministic planner answers
+      // instead, and the reason is shown rather than swallowed.
+      const reason =
+        error instanceof OptimizerRejected
+          ? `The agent's schedule was rejected and replaced by the built-in planner. ${error.violations[0] ?? ""}`
+          : `The agent could not schedule this trip, so the built-in planner did. ${
+              error instanceof Error ? error.message : ""
+            }`;
+      await planLocally(reason.trim());
+    }
+  }, [planLocally]);
 
   const submitRatings = useCallback(async () => {
     await generatePlan();
