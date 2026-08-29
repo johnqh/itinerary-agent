@@ -56,11 +56,11 @@ export default function LegPanel({ leg, from, to, nameOf, onClose }: Props) {
               </span>
             ))}
           </div>
-          {leg.transferCount === 0 && (
-            <p className="mt-1.5 text-[11px] text-muted">
-              Direct: no changes on the way.
-            </p>
-          )}
+          <p className="mt-1.5 text-[11px] text-muted">
+            {leg.transferCount === 0
+              ? "Direct: no changes on the way."
+              : `One change on the way, at ${leg.transitLines?.[1] ? "the interchange" : "one stop"}.`}
+          </p>
         </div>
       )}
 

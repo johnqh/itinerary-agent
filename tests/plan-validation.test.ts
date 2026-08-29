@@ -154,7 +154,8 @@ describe("rejecting an unfollowable schedule", () => {
     expect(result.violations.join(" ")).toMatch(/closed/i);
   });
 
-  test("rejects a transit leg that requires a transfer", () => {
+  test("accepts a transit leg with a single change", () => {
+    // One change is within the rule, so a schedule using it is followable.
     const result = check([
       day({
         legs: [
@@ -169,8 +170,26 @@ describe("rejecting an unfollowable schedule", () => {
         ],
       }),
     ]);
+    expect(result.violations.join(" ")).not.toMatch(/change|transfer/i);
+  });
+
+  test("rejects a transit leg that needs more changes than allowed", () => {
+    const result = check([
+      day({
+        legs: [
+          {
+            fromIndex: 0,
+            toIndex: 1,
+            mode: "transit",
+            durationMinutes: 10,
+            distanceMeters: 800,
+            transferCount: 2,
+          },
+        ],
+      }),
+    ]);
     expect(result.ok).toBe(false);
-    expect(result.violations.join(" ")).toMatch(/transfer/i);
+    expect(result.violations.join(" ")).toMatch(/changes; at most/i);
   });
 
   test("rejects a car day that also uses transit", () => {

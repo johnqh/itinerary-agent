@@ -1,6 +1,11 @@
 import type { LatLng, Pace, RouteLeg, TransportMode } from "@/types/workspace";
 import { estimateTravel } from "@/planner/geo";
-import { selectMode, TRANSIT_SLOWNESS_LIMIT, walkThresholdMinutes } from "@/planner/transport";
+import {
+  MAX_TRANSIT_TRANSFERS,
+  selectMode,
+  TRANSIT_SLOWNESS_LIMIT,
+  walkThresholdMinutes,
+} from "@/planner/transport";
 import {
   cacheKey,
   resolveRoute,
@@ -104,7 +109,7 @@ export async function resolveLeg(
   if (!drive) {
     // Without a driving time there is nothing to judge transit against, and
     // nothing to fall back to either.
-    return transit && transit.transferCount === 0
+    return transit && transit.transferCount <= MAX_TRANSIT_TRANSFERS
       ? toLeg("transit", transit)
       : estimatedLeg(from, to, ctx, "Routing was unavailable for this leg.");
   }
@@ -113,11 +118,11 @@ export async function resolveLeg(
     return toLeg("rideshare", drive, "No transit route was available for this leg.");
   }
 
-  if (transit.transferCount > 0) {
+  if (transit.transferCount > MAX_TRANSIT_TRANSFERS) {
     return toLeg(
       "rideshare",
       drive,
-      `Direct transit unavailable; the only route needs ${transit.transferCount} transfer(s).`,
+      `Transit needs ${transit.transferCount} changes; at most ${MAX_TRANSIT_TRANSFERS} is allowed.`,
     );
   }
 
@@ -125,7 +130,7 @@ export async function resolveLeg(
     return toLeg(
       "rideshare",
       drive,
-      `Transit takes more than twice the rideshare estimate (${transit.durationMinutes} vs ${drive.durationMinutes} min).`,
+      `Transit takes more than ${TRANSIT_SLOWNESS_LIMIT} times the rideshare estimate (${transit.durationMinutes} vs ${drive.durationMinutes} min).`,
     );
   }
 

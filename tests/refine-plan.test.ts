@@ -69,7 +69,7 @@ describe("with routing available", () => {
   test("counts the transit legs it accepted and rejected", async () => {
     const resolve = vi.fn(async ({ mode }: { mode: string }) =>
       mode === "walk" ? route({ durationMinutes: 40 })
-      : mode === "transit" ? route({ durationMinutes: 14, transitLines: ["N", "38"], transferCount: 1 })
+      : mode === "transit" ? route({ durationMinutes: 14, transitLines: ["N", "38", "J"], transferCount: 2 })
       : route({ durationMinutes: 11 }),
     );
     const result = await refinePlanRoutes(plan(), { trip, attractions, restaurants }, resolve);

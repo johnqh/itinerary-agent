@@ -133,14 +133,17 @@ Mode selection per leg, in order:
    minutes; hard cap 25 minutes, raised for packed pace, lowered for relaxed).
 2. If the day is a car day, all non-walking legs use car.
 3. Otherwise request direct transit.
-4. Accept transit only when transfer count is 0, duration is within 2x the
-   rideshare estimate, and arrival still fits the next item's open window.
+4. Accept transit when the journey needs at most one change, its duration is
+   within 3x the rideshare estimate, and arrival still fits the next item's
+   open window.
 5. Otherwise rideshare, estimated from driving time and distance.
 
 Additional rules:
 
-- Transit with any transfer is rejected in this version. If provider data is
-  unavailable, transit is treated as unavailable rather than assumed.
+- A journey needing more than one change is rejected: one change is how a city
+  is normally crossed, but two turns a trip into an errand and each connection
+  is another one that can be missed. If provider data is unavailable, transit
+  is treated as unavailable rather than assumed.
 - A car day is all-or-nothing: car and transit are not mixed within a date.
   Car days should carry parking notes where discoverable.
 - Every leg records its mode, duration, distance, and, where a preferred mode

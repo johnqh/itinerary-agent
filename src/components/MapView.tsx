@@ -32,18 +32,27 @@ interface Props {
  */
 
 function pinIcon(glyph: string, color: string, state: "active" | "faded" | "selected"): L.DivIcon {
-  const size = state === "selected" ? 40 : state === "faded" ? 22 : 32;
+  const size = state === "selected" ? 38 : state === "faded" ? 22 : 30;
   // Faded pins stay legible but clearly secondary: a place not on today's
   // route is context, not a destination.
   const opacity = state === "faded" ? 0.3 : 1;
-  const ring = state === "selected" ? `box-shadow:0 0 0 3px #fff,0 0 0 6px ${color};` : "box-shadow:0 1px 4px rgba(0,0,0,.35);";
+  const ring =
+    state === "selected"
+      ? `box-shadow:0 0 0 2px #fff,0 0 0 5px ${color},0 2px 6px rgba(0,0,0,.4);`
+      : "box-shadow:0 1px 3px rgba(0,0,0,.35);";
+
+  // A teardrop whose point sits on the coordinate, which is what a map pin is
+  // for: a circle marks an area, a point marks a place. Built by rounding
+  // three corners and rotating, so the remaining square corner becomes the tip.
   return L.divIcon({
     className: "",
     iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};
-      display:flex;align-items:center;justify-content:center;font-size:${Math.round(size * 0.5)}px;
-      border:2px solid #fff;opacity:${opacity};${ring}">${glyph}</div>`,
+    iconAnchor: [size / 2, size],
+    html: `<div style="width:${size}px;height:${size}px;background:${color};
+      border:1px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+      display:flex;align-items:center;justify-content:center;opacity:${opacity};${ring}">
+      <span style="transform:rotate(45deg);font-size:${Math.round(size * 0.46)}px;line-height:1;">${glyph}</span>
+    </div>`,
   });
 }
 

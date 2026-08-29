@@ -47,8 +47,32 @@ export function walkThresholdMinutes(pace: Pace): number {
   return Math.min(WALK_THRESHOLDS[pace], WALK_ABSOLUTE_CAP_MINUTES);
 }
 
-/** Transit is rejected when it costs more than this multiple of driving. */
-export const TRANSIT_SLOWNESS_LIMIT = 2;
+/**
+ * How much slower than a taxi a transit journey may be before it is rejected.
+ *
+ * A taxi is the wrong baseline for a traveller who declined a rental car: they
+ * are not taking five taxis a day, so a journey being slower than driving is
+ * expected rather than disqualifying. Measured San Francisco journeys came in
+ * at roughly 2.1 to 2.4 times the driving time, which is ordinary city
+ * transit; a limit of 2 rejected all of them and planned a transit-rich city
+ * entirely by taxi. Three still rejects the genuinely bad recommendation — the
+ * 46-minute ride against a 13-minute drive.
+ */
+export const TRANSIT_SLOWNESS_LIMIT = 3;
+
+/**
+ * How many changes a transit journey may ask of a traveller.
+ *
+ * One change is how a city is normally crossed; refusing it rejects most real
+ * journeys and leaves a transit-rich city planned entirely by taxi. Two or
+ * more turns a journey into an errand, and the itinerary's timing gets less
+ * trustworthy with each connection that can be missed.
+ *
+ * Every consumer reads this constant rather than testing the count directly,
+ * so the estimator, the live router, the validator and the agent's brief
+ * cannot drift apart on what the rule is.
+ */
+export const MAX_TRANSIT_TRANSFERS = 1;
 
 export function selectMode(
   option: TravelOption,
@@ -73,15 +97,15 @@ export function selectMode(
     return rideshare("Transit data unavailable for this leg.");
   }
 
-  if (transit.transferCount > 0) {
+  if (transit.transferCount > MAX_TRANSIT_TRANSFERS) {
     return rideshare(
-      `Direct transit unavailable; the only route needs ${transit.transferCount} transfer(s).`,
+      `Transit needs ${transit.transferCount} changes; at most ${MAX_TRANSIT_TRANSFERS} is allowed.`,
     );
   }
 
   if (transit.minutes > TRANSIT_SLOWNESS_LIMIT * option.driveMinutes) {
     return rideshare(
-      `Transit takes more than twice the rideshare estimate (${transit.minutes} vs ${option.driveMinutes} min).`,
+      `Transit takes more than ${TRANSIT_SLOWNESS_LIMIT} times the rideshare estimate (${transit.minutes} vs ${option.driveMinutes} min).`,
     );
   }
 

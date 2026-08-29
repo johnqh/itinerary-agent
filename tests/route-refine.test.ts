@@ -81,18 +81,30 @@ describe("transit acceptance", () => {
     expect(leg.estimated).toBe(false);
   });
 
-  test("rejects a ride that needs a transfer, and says so", async () => {
+  test("accepts a ride with a single change", async () => {
     const resolve = resolver({
       walk: route({ durationMinutes: 40 }),
       transit: route({ durationMinutes: 14, transitLines: ["N", "38"], transferCount: 1 }),
       rideshare: route({ durationMinutes: 10 }),
     });
     const leg = await resolveLeg(FROM, TO, CTX, resolve);
-    expect(leg.mode).toBe("rideshare");
-    expect(leg.fallbackReason).toMatch(/transfer/i);
+    expect(leg.mode).toBe("transit");
+    expect(leg.transferCount).toBe(1);
+    expect(leg.transitLines).toEqual(["N", "38"]);
   });
 
-  test("rejects transit that takes more than twice the drive", async () => {
+  test("rejects a ride that needs a transfer, and says so", async () => {
+    const resolve = resolver({
+      walk: route({ durationMinutes: 40 }),
+      transit: route({ durationMinutes: 14, transitLines: ["N", "38", "J"], transferCount: 2 }),
+      rideshare: route({ durationMinutes: 10 }),
+    });
+    const leg = await resolveLeg(FROM, TO, CTX, resolve);
+    expect(leg.mode).toBe("rideshare");
+    expect(leg.fallbackReason).toMatch(/change|transfer/i);
+  });
+
+  test("rejects transit that takes far longer than the drive", async () => {
     const resolve = resolver({
       walk: route({ durationMinutes: 40 }),
       transit: route({ durationMinutes: 45, transitLines: ["N"] }),
@@ -100,7 +112,7 @@ describe("transit acceptance", () => {
     });
     const leg = await resolveLeg(FROM, TO, CTX, resolve);
     expect(leg.mode).toBe("rideshare");
-    expect(leg.fallbackReason).toMatch(/twice|slower/i);
+    expect(leg.fallbackReason).toMatch(/times|longer|slower/i);
   });
 
   test("falls back to a ride when the provider has no transit for this leg", async () => {

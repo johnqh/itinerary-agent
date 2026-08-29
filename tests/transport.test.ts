@@ -69,7 +69,9 @@ describe("transit acceptance", () => {
     expect(decision.transferCount).toBe(0);
   });
 
-  test("rejects a transit route that requires a transfer", () => {
+  test("accepts a route with a single change", () => {
+    // One change is a normal way to cross a city; refusing it would reject
+    // most real journeys in a place like San Francisco.
     const decision = selectMode(
       {
         ...base,
@@ -77,11 +79,37 @@ describe("transit acceptance", () => {
       },
       { isCarDay: false, pace: "balanced" },
     );
-    expect(decision.mode).toBe("rideshare");
-    expect(decision.fallbackReason).toMatch(/transfer/i);
+    expect(decision.mode).toBe("transit");
+    expect(decision.transferCount).toBe(1);
   });
 
-  test("rejects transit that takes more than twice the rideshare estimate", () => {
+  test("rejects a route that needs more changes than the limit", () => {
+    const decision = selectMode(
+      {
+        ...base,
+        transit: { minutes: 18, transferCount: 2, lines: ["A", "B", "C"] },
+      },
+      { isCarDay: false, pace: "balanced" },
+    );
+    expect(decision.mode).toBe("rideshare");
+    expect(decision.fallbackReason).toMatch(/change|transfer/i);
+  });
+
+  test("accepts transit that is slower than a taxi but not absurdly so", () => {
+    // Someone who declined a rental car is not taking taxis all day, so a taxi
+    // is the wrong baseline to judge a normal transit journey against.
+    const decision = selectMode(
+      {
+        ...base,
+        driveMinutes: 10,
+        transit: { minutes: 24, transferCount: 0, lines: ["N"] },
+      },
+      { isCarDay: false, pace: "balanced" },
+    );
+    expect(decision.mode).toBe("transit");
+  });
+
+  test("rejects transit that takes far longer than the rideshare estimate", () => {
     const decision = selectMode(
       {
         ...base,
@@ -91,7 +119,7 @@ describe("transit acceptance", () => {
       { isCarDay: false, pace: "balanced" },
     );
     expect(decision.mode).toBe("rideshare");
-    expect(decision.fallbackReason).toMatch(/slower|twice/i);
+    expect(decision.fallbackReason).toMatch(/longer|slower|times/i);
   });
 
   test("falls back to rideshare when no transit data exists", () => {
