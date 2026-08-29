@@ -41,6 +41,18 @@ describe("opening hours", () => {
     expect(openDuring(undefined, 600, 700)).toBe("unknown");
     expect(openDuring({ status: "unknown" }, 600, 700)).toBe("unknown");
   });
+
+  // A closing clock earlier than the opening clock means the next morning:
+  // a bar open 18:00–02:00 is serving dinner, not shut all evening.
+  const overnight: Hours = { status: "open", open: "18:00", close: "02:00" };
+
+  test("reports open for a dinner inside hours that run past midnight", () => {
+    expect(openDuring(overnight, toMinutes("19:00"), toMinutes("20:15"))).toBe("open");
+  });
+
+  test("still reports closed in the morning for hours that run past midnight", () => {
+    expect(openDuring(overnight, toMinutes("09:00"), toMinutes("10:00"))).toBe("closed");
+  });
 });
 
 describe("day window", () => {

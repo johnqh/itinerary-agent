@@ -149,6 +149,7 @@ describe("restaurants", () => {
         cuisine: ["japanese", 7, "quick bite"],
         lat: 35.7115,
         lng: 139.777,
+        sources: [{ url: "https://example.com/ueno-ramen" }],
         confidence: 0.6,
       },
     ]);
@@ -159,5 +160,92 @@ describe("restaurants", () => {
   test("rejects a restaurant without coordinates", () => {
     const result = run([], [{ name: "Nowhere", cuisine: ["japanese"] }]);
     expect(result.restaurants).toHaveLength(0);
+  });
+});
+
+describe("identity", () => {
+  test("keeps a name written in a non-latin script identifiable", () => {
+    const result = run([
+      raw({ name: "東京タワー", lat: 35.6586, lng: 139.7454 }),
+      raw({ name: "浅草寺", lat: 35.7148, lng: 139.7967 }),
+    ]);
+    expect(result.attractions).toHaveLength(2);
+    expect(result.attractions[0]!.id).toBeTruthy();
+    expect(result.attractions[1]!.id).toBeTruthy();
+    expect(result.attractions[0]!.id).not.toBe(result.attractions[1]!.id);
+  });
+
+  test("still gives a place an id when its name carries no letters at all", () => {
+    const result = run([raw({ name: "!!!" })]);
+    expect(result.attractions).toHaveLength(1);
+    expect(result.attractions[0]!.id).toBeTruthy();
+  });
+});
+
+describe("distinct places that share a name", () => {
+  test("keeps two branches at different addresses", () => {
+    const result = run([], [
+      {
+        name: "Ichiran",
+        cuisine: ["japanese"],
+        lat: 35.6595,
+        lng: 139.7005,
+        sources: [{ url: "https://example.com/shibuya" }],
+      },
+      {
+        name: "Ichiran",
+        cuisine: ["japanese"],
+        lat: 35.7101,
+        lng: 139.8107,
+        sources: [{ url: "https://example.com/asakusa" }],
+      },
+    ]);
+    expect(result.restaurants).toHaveLength(2);
+    expect(result.restaurants[0]!.id).not.toBe(result.restaurants[1]!.id);
+  });
+
+  test("still merges the same place reported twice with jittered coordinates", () => {
+    const result = run([
+      raw({ confidence: 0.4 }),
+      raw({ lat: 35.7149, lng: 139.7968, confidence: 0.9 }),
+    ]);
+    expect(result.attractions).toHaveLength(1);
+    expect(result.attractions[0]!.confidence).toBe(0.9);
+  });
+});
+
+describe("grounding", () => {
+  test("rejects a record no source url survived", () => {
+    const result = run([raw({ sources: [{ url: "not a url" }] })]);
+    expect(result.attractions).toHaveLength(0);
+    expect(result.rejected[0]!.reason).toMatch(/source/i);
+  });
+
+  test("rejects a record that arrived with no sources at all", () => {
+    const result = run([], [
+      { name: "Unsourced diner", cuisine: ["local"], lat: 35.7, lng: 139.7 },
+    ]);
+    expect(result.restaurants).toHaveLength(0);
+    expect(result.rejected[0]!.reason).toMatch(/source/i);
+  });
+});
+
+describe("hours that run past midnight", () => {
+  test("keeps a late-night closing time instead of discarding it", () => {
+    const result = run([
+      raw({ hoursByDate: { "2026-09-07": { status: "open", open: "18:00", close: "02:00" } } }),
+    ]);
+    expect(result.attractions[0]!.hoursByDate["2026-09-07"]).toEqual({
+      status: "open",
+      open: "18:00",
+      close: "02:00",
+    });
+  });
+
+  test("treats an interval that opens and closes at the same time as unknown", () => {
+    const result = run([
+      raw({ hoursByDate: { "2026-09-07": { status: "open", open: "12:00", close: "12:00" } } }),
+    ]);
+    expect(result.attractions[0]!.hoursByDate["2026-09-07"]).toEqual({ status: "unknown" });
   });
 });

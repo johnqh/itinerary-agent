@@ -5,6 +5,7 @@ import type {
   Restaurant,
   SourceRef,
 } from "@/types/workspace";
+import { haversineMeters } from "@/planner/geo";
 
 /**
  * Turns raw agent output into contract-valid records.
@@ -39,6 +40,10 @@ const DEFAULT_VISIT_MINUTES = 60;
 /** Absent confidence is treated as weak, never as certainty. */
 const DEFAULT_CONFIDENCE = 0.4;
 
+/** Said out loud in the discovery banner, so it has to read as a sentence. */
+const UNSOURCED_REASON =
+  "No retrievable source was cited, so nothing in the record is grounded.";
+
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,13 +62,32 @@ function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
 }
 
-/** Names arrive with stray case, spacing, and punctuation; compare on this. */
+/**
+ * Names arrive with stray case, spacing, and punctuation; compare on this.
+ *
+ * Letters and digits of every script are kept, not just ASCII ones. Stripping
+ * to ASCII collapsed 東京タワー and 浅草寺 to the same empty string, which made
+ * two unrelated landmarks one record and pointed every rating at whichever
+ * survived. Combining marks are dropped after NFKD so "Sensō-ji" and
+ * "Senso-ji" still meet.
+ */
 function slugify(name: string): string {
   return name
     .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * An id for a place whose name contributes no letters or digits at all.
+ * Coordinates are the only identity such a record has left.
+ */
+function locationSlug(location: LatLng): string {
+  const part = (value: number) =>
+    `${value < 0 ? "s" : ""}${Math.abs(Math.round(value * 10_000))}`;
+  return `place-${part(location.lat)}-${part(location.lng)}`;
 }
 
 function readLocation(entry: Record<string, unknown>): LatLng | undefined {
@@ -102,14 +126,22 @@ function readPhotoUrls(value: unknown): string[] {
   });
 }
 
-/** A single date's hours, or `unknown` when the payload cannot be trusted. */
+/**
+ * A single date's hours, or `unknown` when the payload cannot be trusted.
+ *
+ * A closing clock earlier than the opening one is a night that runs past
+ * midnight, not a mistake: rejecting 18:00–02:00 threw away exactly the
+ * restaurants that can seat a late dinner. Only an interval that opens and
+ * closes at the same minute is unreadable, because nothing says whether it
+ * means all day or not at all.
+ */
 function readHours(value: unknown): Hours {
   if (!isRecord(value)) return { status: "unknown" };
   if (value.status === "closed") return { status: "closed" };
   if (value.status === "open") {
     const open = readString(value.open);
     const close = readString(value.close);
-    if (open && close && CLOCK.test(open) && CLOCK.test(close) && open < close) {
+    if (open && close && CLOCK.test(open) && CLOCK.test(close) && open !== close) {
       return { status: "open", open, close };
     }
     // Claimed open, but the times are unusable. Saying so beats guessing.
@@ -173,11 +205,80 @@ function keepBetter<T extends { confidence: number; sources: SourceRef[] }>(
   return candidate.sources.length > existing.sources.length ? candidate : existing;
 }
 
+/**
+ * How close two records sharing a name have to be to be the same place.
+ *
+ * Subagents report the same landmark with slightly different coordinates, so
+ * an exact match would never merge anything. Two hundred metres is wider than
+ * that jitter and far narrower than the distance between two branches of a
+ * restaurant chain, which are separate places a traveller may need to choose
+ * between.
+ */
+const SAME_PLACE_METERS = 200;
+
+interface Place {
+  id: string;
+  location: LatLng;
+  confidence: number;
+  sources: SourceRef[];
+}
+
+/**
+ * Collects records under a name, keeping distinct places distinct.
+ *
+ * Keying on the name alone silently deleted every second branch of a chain and
+ * every unrelated venue that happened to share a name, so identity here is the
+ * name *and* the position. Ids stay unique because everything downstream —
+ * ratings, plan items, map markers — resolves a place by its id.
+ */
+function createPlaceIndex<T extends Place>() {
+  const entries: { slug: string; record: T }[] = [];
+  const usedIds = new Set<string>();
+
+  function uniqueId(base: string): string {
+    if (!usedIds.has(base)) {
+      usedIds.add(base);
+      return base;
+    }
+    for (let suffix = 2; ; suffix++) {
+      const candidate = `${base}-${suffix}`;
+      if (!usedIds.has(candidate)) {
+        usedIds.add(candidate);
+        return candidate;
+      }
+    }
+  }
+
+  return {
+    /** `build` is called with the id the record will actually carry. */
+    add(slug: string, build: (id: string) => T): void {
+      const provisional = build("");
+      const twin = entries.find(
+        (entry) =>
+          entry.slug === slug &&
+          haversineMeters(entry.record.location, provisional.location) <=
+            SAME_PLACE_METERS,
+      );
+      if (twin) {
+        // The surviving record keeps the id already handed out, so a merge
+        // never moves a rating from under the traveller.
+        twin.record = keepBetter(twin.record, build(twin.record.id));
+        return;
+      }
+      const id = uniqueId(slug || locationSlug(provisional.location));
+      entries.push({ slug, record: build(id) });
+    },
+    values(): T[] {
+      return entries.map((entry) => entry.record);
+    },
+  };
+}
+
 export function normalizeDiscovery(raw: unknown, dates: string[]): NormalizeResult {
   const payload = isRecord(raw) ? raw : {};
   const rejected: RejectedRecord[] = [];
 
-  const attractions = new Map<string, Attraction>();
+  const attractions = createPlaceIndex<Attraction>();
   for (const entry of asList(payload.attractions)) {
     if (!isRecord(entry)) continue;
 
@@ -193,8 +294,17 @@ export function normalizeDiscovery(raw: unknown, dates: string[]): NormalizeResu
       continue;
     }
 
-    const attraction: Attraction = {
-      id: slugify(name),
+    // Grounding is the whole contract of a research record. One that cites
+    // nothing retrievable is a claim, and a claim is what the seed dataset is
+    // for, not what live research is for.
+    const sources = readSources(entry.sources);
+    if (sources.length === 0) {
+      rejected.push({ name, reason: UNSOURCED_REASON });
+      continue;
+    }
+
+    attractions.add(slugify(name), (id) => ({
+      id,
       name,
       category: readString(entry.category) ?? "attraction",
       location,
@@ -207,18 +317,12 @@ export function normalizeDiscovery(raw: unknown, dates: string[]): NormalizeResu
       ticketUrl: readHttpUrl(entry.ticketUrl),
       officialUrl: readHttpUrl(entry.officialUrl),
       photoUrls: readPhotoUrls(entry.photoUrls),
-      sources: readSources(entry.sources),
+      sources,
       confidence: readConfidence(entry.confidence),
-    };
-
-    const existing = attractions.get(attraction.id);
-    attractions.set(
-      attraction.id,
-      existing ? keepBetter(existing, attraction) : attraction,
-    );
+    }));
   }
 
-  const restaurants = new Map<string, Restaurant>();
+  const restaurants = createPlaceIndex<Restaurant>();
   for (const entry of asList(payload.restaurants)) {
     if (!isRecord(entry)) continue;
 
@@ -234,27 +338,27 @@ export function normalizeDiscovery(raw: unknown, dates: string[]): NormalizeResu
       continue;
     }
 
-    const restaurant: Restaurant = {
-      id: slugify(name),
+    const sources = readSources(entry.sources);
+    if (sources.length === 0) {
+      rejected.push({ name, reason: UNSOURCED_REASON });
+      continue;
+    }
+
+    restaurants.add(slugify(name), (id) => ({
+      id,
       name,
       cuisine: readCuisine(entry.cuisine),
       location,
       hoursByDate: readHoursByDate(entry.hoursByDate, dates),
       priceLevel: readPriceLevel(entry.priceLevel),
-      sources: readSources(entry.sources),
+      sources,
       confidence: readConfidence(entry.confidence),
-    };
-
-    const existing = restaurants.get(restaurant.id);
-    restaurants.set(
-      restaurant.id,
-      existing ? keepBetter(existing, restaurant) : restaurant,
-    );
+    }));
   }
 
   return {
-    attractions: [...attractions.values()],
-    restaurants: [...restaurants.values()],
+    attractions: attractions.values(),
+    restaurants: restaurants.values(),
     rejected,
   };
 }
