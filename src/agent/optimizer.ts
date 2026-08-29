@@ -200,7 +200,13 @@ export async function runSandboxOptimizer(
 
   const { days, excluded, summary } = toPlanDays(readTurnOutput(finalState));
 
-  const verdict = validateAgentPlan(days, { trip, dates, attractions, restaurants });
+  // The exclusions are part of the answer, not commentary on it: they drive the
+  // excluded pins and the diagnostics, so they are checked with the schedule.
+  const verdict = validateAgentPlan(
+    days,
+    { trip, dates, attractions, restaurants },
+    excluded,
+  );
   if (!verdict.ok) throw new OptimizerRejected(verdict.violations);
 
   // The scheduler may legitimately fail to seat a meal; it may not do so

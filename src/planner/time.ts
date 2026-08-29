@@ -11,6 +11,21 @@ export function toMinutes(clock: string): number {
   return Number(h) * 60 + Number(m);
 }
 
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Minutes since midnight, or null when the string is not a real clock.
+ *
+ * `toMinutes` is arithmetic over strings this codebase produced, so it trusts
+ * its input. Anything an agent wrote has to come through here first: "12:60"
+ * and "9:5" both convert to a finite, plausible-looking number, and a schedule
+ * validated on that number keeps the original string and shows the traveller a
+ * time that does not exist.
+ */
+export function parseClock(clock: string): number | null {
+  return CLOCK.test(clock) ? toMinutes(clock) : null;
+}
+
 export function toClock(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;

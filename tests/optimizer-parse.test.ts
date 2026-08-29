@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { toPlanDays } from "@/agent/optimizer";
+import { optimizerSchema } from "@/agent/optimizerAgent";
 
 /**
  * The scheduler's JSON is agent-produced. Malformed pieces are dropped rather
@@ -29,6 +30,33 @@ function payload(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("the shape the scheduler is asked for", () => {
+  /**
+   * No routing provider runs on this path, so a transit line or a transfer
+   * count would be invented rather than retrieved. The mode is withheld at the
+   * schema, not just rejected afterwards, so the model is never offered it.
+   */
+  test("offers no transit mode, because no transit data was retrieved", () => {
+    const schema = optimizerSchema(["2026-09-12"]);
+    const leg =
+      schema.schema.properties.days.items.properties.legs.items.properties;
+    expect(leg.mode.enum).toEqual(["walk", "rideshare", "car"]);
+  });
+
+  /**
+   * OpenAI's strict structured outputs reject several JSON Schema keywords,
+   * `minItems` among them, and a schema carrying one fails every turn. Counts
+   * and cardinality are stated in the instructions instead.
+   */
+  test("uses no schema keyword strict structured outputs would reject", () => {
+    const banned = ["minItems", "maxItems", "minimum", "maximum", "pattern", "format"];
+    const json = JSON.stringify(optimizerSchema(["2026-09-12"]));
+    for (const keyword of banned) {
+      expect(json).not.toContain(`"${keyword}"`);
+    }
+  });
+});
 
 describe("well-formed output", () => {
   test("reshapes days, items and legs", () => {

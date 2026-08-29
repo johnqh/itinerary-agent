@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { validateAgentPlan } from "@/agent/planValidation";
-import type { Attraction, PlanDay, Restaurant, TripRequest } from "@/types/workspace";
+import type {
+  Attraction,
+  ExclusionReason,
+  PlanDay,
+  Restaurant,
+  TripRequest,
+} from "@/types/workspace";
 
 /**
  * The optimizer's output is agent-produced, so it is checked against the same
@@ -65,13 +71,53 @@ function day(overrides: Partial<PlanDay> = {}): PlanDay {
   };
 }
 
-function check(days: PlanDay[]) {
-  return validateAgentPlan(days, { trip, dates: DATES, attractions, restaurants });
+/**
+ * The trip runs two dates, so a complete answer covers both. The second day is
+ * deliberately minimal: it exists so the schedules under test are complete
+ * rather than because anything is asserted about it.
+ */
+function secondDay(overrides: Partial<PlanDay> = {}): PlanDay {
+  return {
+    date: DATES[1]!,
+    isCarDay: false,
+    items: [{ kind: "attraction", refId: "a2", startTime: "09:00", endTime: "10:00" }],
+    legs: [],
+    summary: "",
+    ...overrides,
+  };
+}
+
+/** Every attraction the days do not schedule, accounted for with a reason. */
+function accountFor(days: PlanDay[]): ExclusionReason[] {
+  const scheduled = new Set(
+    days
+      .flatMap((d) => d.items)
+      .filter((i) => i.kind === "attraction")
+      .map((i) => i.refId),
+  );
+  return attractions
+    .filter((a) => !scheduled.has(a.id))
+    .map((a) => ({ attractionId: a.id, reason: "Did not fit." }));
+}
+
+function check(days: PlanDay[], excluded: ExclusionReason[] = accountFor(days)) {
+  return validateAgentPlan(days, { trip, dates: DATES, attractions, restaurants }, excluded);
 }
 
 describe("accepting a sound schedule", () => {
   test("accepts a day that breaks no rule", () => {
-    expect(check([day()]).ok).toBe(true);
+    expect(check([day(), secondDay()]).ok).toBe(true);
+  });
+
+  /**
+   * A meal the data cannot seat is a degraded result the workspace names, not
+   * an unfollowable day. Rejecting the whole schedule over it would throw away
+   * a usable itinerary and contradict the unplaced-meal report.
+   */
+  test("accepts a day that seats no dinner, which is reported rather than rejected", () => {
+    const result = check([day(), secondDay()]);
+    expect(result.ok).toBe(true);
+    expect(day().items.some((i) => i.meal === "dinner")).toBe(false);
   });
 });
 
@@ -99,12 +145,11 @@ describe("rejecting an unfollowable schedule", () => {
         ? { ...a, hoursByDate: { ...a.hoursByDate, [DATES[0]!]: { status: "closed" as const } } }
         : a,
     );
-    const result = validateAgentPlan([day()], {
-      trip,
-      dates: DATES,
-      attractions: shut,
-      restaurants,
-    });
+    const result = validateAgentPlan(
+      [day(), secondDay()],
+      { trip, dates: DATES, attractions: shut, restaurants },
+      [{ attractionId: "a3", reason: "Did not fit." }],
+    );
     expect(result.ok).toBe(false);
     expect(result.violations.join(" ")).toMatch(/closed/i);
   });
@@ -200,5 +245,319 @@ describe("rejecting an unfollowable schedule", () => {
     ]);
     expect(result.ok).toBe(false);
     expect(result.violations.length).toBeGreaterThan(1);
+  });
+});
+
+describe("covering every date of the trip", () => {
+  test("rejects a schedule that leaves one of the trip's dates unplanned", () => {
+    const result = check([day()]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/no day for 2026-09-13/i);
+  });
+
+  test("rejects an empty schedule outright", () => {
+    const result = check([]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.length).toBeGreaterThan(1);
+  });
+
+  test("rejects the same date planned twice", () => {
+    const result = check([day(), day({ items: [], legs: [] }), secondDay()]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/2026-09-12 appears 2 times/i);
+  });
+});
+
+describe("reading the clock the scheduler wrote", () => {
+  test("rejects a minute field that is not a minute", () => {
+    const result = check([
+      day({
+        items: [{ kind: "attraction", refId: "a1", startTime: "12:60", endTime: "13:30" }],
+        legs: [],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/usable start and end time/i);
+  });
+
+  test("rejects an unpadded clock rather than guessing what it meant", () => {
+    const result = check([
+      day({
+        items: [{ kind: "attraction", refId: "a1", startTime: "9:5", endTime: "10:00" }],
+        legs: [],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/usable start and end time/i);
+  });
+});
+
+describe("meals", () => {
+  test("rejects a meal that is neither lunch nor dinner", () => {
+    const result = check([
+      day({
+        items: [
+          { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+          { kind: "meal", refId: "r1", startTime: "12:30", endTime: "13:30" },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/neither lunch nor dinner/i);
+  });
+
+  test("rejects dinner seated at lunchtime", () => {
+    const result = check([
+      day({
+        items: [
+          { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+          { kind: "meal", refId: "r1", meal: "dinner", startTime: "12:30", endTime: "13:30" },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/outside the dinner window/i);
+  });
+
+  test("rejects two lunches on the same day", () => {
+    const result = check([
+      day({
+        items: [
+          { kind: "meal", refId: "r1", meal: "lunch", startTime: "11:30", endTime: "12:15" },
+          { kind: "meal", refId: "r1", meal: "lunch", startTime: "12:30", endTime: "13:30" },
+        ],
+        legs: [
+          { fromIndex: 0, toIndex: 1, mode: "walk", durationMinutes: 0, distanceMeters: 0 },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/seats lunch twice/i);
+  });
+
+  test("rejects a meal at a restaurant that is closed then", () => {
+    const shut: Restaurant[] = restaurants.map((r) => ({
+      ...r,
+      hoursByDate: { ...r.hoursByDate, [DATES[0]!]: { status: "closed" as const } },
+    }));
+    const result = validateAgentPlan(
+      [day(), secondDay()],
+      { trip, dates: DATES, attractions, restaurants: shut },
+      [{ attractionId: "a3", reason: "Did not fit." }],
+    );
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/closed/i);
+  });
+});
+
+describe("visit durations", () => {
+  test("rejects an attraction given less time than its visit takes", () => {
+    const result = check([
+      day({
+        items: [{ kind: "attraction", refId: "a1", startTime: "09:00", endTime: "09:01" }],
+        legs: [],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/needs 60 min/i);
+  });
+});
+
+describe("transport this run has no data for", () => {
+  test("rejects a transit leg even when it needs no transfer", () => {
+    const result = check([
+      day({
+        legs: [
+          {
+            fromIndex: 0,
+            toIndex: 1,
+            mode: "transit",
+            durationMinutes: 10,
+            distanceMeters: 800,
+            transferCount: 0,
+          },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/no transit data was retrieved/i);
+  });
+
+  test("rejects a car day on a trip with no rental car", () => {
+    const result = check([day({ isCarDay: true }), secondDay()]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/no rental car/i);
+  });
+
+  test("rejects a car leg on a day that is not a car day", () => {
+    const result = check([
+      day({
+        legs: [
+          { fromIndex: 0, toIndex: 1, mode: "car", durationMinutes: 10, distanceMeters: 800 },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/is not a car day/i);
+  });
+});
+
+describe("checking travel against the coordinates rather than the solver", () => {
+  /** a1 to a3 is about 2.9 km: too far to walk, so the model picks rideshare. */
+  function farDay(overrides: Partial<PlanDay> = {}): PlanDay {
+    return day({
+      items: [
+        { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+        { kind: "attraction", refId: "a3", startTime: "10:30", endTime: "11:30" },
+      ],
+      legs: [
+        {
+          fromIndex: 0,
+          toIndex: 1,
+          mode: "rideshare",
+          durationMinutes: 14,
+          distanceMeters: 3726,
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  test("accepts a leg that reserves the journey the coordinates imply", () => {
+    expect(check([farDay(), secondDay()]).ok).toBe(true);
+  });
+
+  test("rejects a zero-minute leg between stops that are kilometres apart", () => {
+    const result = check([
+      farDay({
+        legs: [
+          { fromIndex: 0, toIndex: 1, mode: "rideshare", durationMinutes: 0, distanceMeters: 0 },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/understates/i);
+  });
+
+  test("rejects a mode the travel model would not have chosen", () => {
+    const result = check([
+      farDay({
+        legs: [
+          { fromIndex: 0, toIndex: 1, mode: "walk", durationMinutes: 40, distanceMeters: 2866 },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/by walk where the travel model gives rideshare/i);
+  });
+
+  test("rejects consecutive stops with no leg between them", () => {
+    const result = check([farDay({ legs: [] }), secondDay()]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/no leg/i);
+  });
+
+  test("rejects two legs claiming the same pair of stops", () => {
+    const result = check([
+      farDay({
+        legs: [
+          {
+            fromIndex: 0,
+            toIndex: 1,
+            mode: "rideshare",
+            durationMinutes: 14,
+            distanceMeters: 3726,
+          },
+          {
+            fromIndex: 0,
+            toIndex: 1,
+            mode: "rideshare",
+            durationMinutes: 14,
+            distanceMeters: 3726,
+          },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/2 legs/i);
+  });
+
+  test("rejects a leg that skips over a stop", () => {
+    const result = check([
+      day({
+        items: [
+          { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+          { kind: "meal", refId: "r1", meal: "lunch", startTime: "12:30", endTime: "13:30" },
+          { kind: "attraction", refId: "a3", startTime: "15:00", endTime: "16:00" },
+        ],
+        legs: [
+          { fromIndex: 0, toIndex: 2, mode: "walk", durationMinutes: 10, distanceMeters: 800 },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/consecutive stops/i);
+  });
+});
+
+describe("accounting for every attraction", () => {
+  test("rejects an attraction that is neither scheduled nor excluded", () => {
+    const result = check([day(), secondDay()], []);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/neither scheduled nor/i);
+  });
+
+  test("rejects an attraction that is both scheduled and excluded", () => {
+    const result = check(
+      [day(), secondDay()],
+      [
+        { attractionId: "a1", reason: "Did not fit." },
+        { attractionId: "a3", reason: "Did not fit." },
+      ],
+    );
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/both scheduled and excluded/i);
+  });
+
+  test("rejects an exclusion naming something that was never discovered", () => {
+    const result = check(
+      [day(), secondDay()],
+      [
+        { attractionId: "a3", reason: "Did not fit." },
+        { attractionId: "ghost", reason: "Did not fit." },
+      ],
+    );
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/excluded but was never discovered/i);
+  });
+
+  test("rejects the same attraction excluded twice", () => {
+    const result = check(
+      [day(), secondDay()],
+      [
+        { attractionId: "a3", reason: "Did not fit." },
+        { attractionId: "a3", reason: "Also did not fit." },
+      ],
+    );
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/excluded 2 times/i);
+  });
+
+  test("rejects an exclusion with no reason", () => {
+    const result = check([day(), secondDay()], [{ attractionId: "a3", reason: "  " }]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/no reason/i);
   });
 });
