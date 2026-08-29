@@ -32,8 +32,10 @@ interface Props {
  */
 
 function pinIcon(glyph: string, color: string, state: "active" | "faded" | "selected"): L.DivIcon {
-  const size = state === "selected" ? 40 : 32;
-  const opacity = state === "faded" ? 0.45 : 1;
+  const size = state === "selected" ? 40 : state === "faded" ? 22 : 32;
+  // Faded pins stay legible but clearly secondary: a place not on today's
+  // route is context, not a destination.
+  const opacity = state === "faded" ? 0.3 : 1;
   const ring = state === "selected" ? `box-shadow:0 0 0 3px #fff,0 0 0 6px ${color};` : "box-shadow:0 1px 4px rgba(0,0,0,.35);";
   return L.divIcon({
     className: "",
@@ -90,19 +92,43 @@ export default function MapView({
     };
   }, [center.lat, center.lng, onTileError]);
 
-  // Fit to the candidates, keyed on the set itself so a selection or a replan
-  // never steals a pan the traveller made.
+  /**
+   * Frames what the traveller is currently looking at.
+   *
+   * Once a day is selected, that day is the subject: the map fits its stops
+   * rather than the whole city, so switching to Day 2 moves the map to Day 2
+   * instead of leaving a wide view with a few pins lit up. Before a plan
+   * exists, the candidate set is the subject.
+   *
+   * Keyed on what is being framed, so a selection, a replan or a re-render
+   * never steals a pan the traveller made themselves.
+   */
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || attractions.length === 0) return;
-    const key = attractions.map((a) => a.id).join("|");
+    if (!map) return;
+
+    const positions = new Map<string, LatLng>();
+    for (const a of attractions) positions.set(a.id, a.location);
+    for (const r of restaurants) positions.set(r.id, r.location);
+
+    const dayPoints = (day?.items ?? [])
+      .map((item) => positions.get(item.refId))
+      .filter((p): p is LatLng => Boolean(p));
+
+    const points = dayPoints.length > 0 ? dayPoints : attractions.map((a) => a.location);
+    if (points.length === 0) return;
+
+    const key = day && dayPoints.length > 0
+      ? `day:${day.date}:${day.items.map((i) => i.refId).join("|")}`
+      : `all:${attractions.map((a) => a.id).join("|")}`;
     if (fittedKeyRef.current === key) return;
     fittedKeyRef.current = key;
+
     map.fitBounds(
-      L.latLngBounds(attractions.map((a) => [a.location.lat, a.location.lng] as [number, number])),
-      { padding: [48, 48], maxZoom: 15 },
+      L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number])),
+      { padding: [56, 56], maxZoom: 15 },
     );
-  }, [attractions]);
+  }, [attractions, restaurants, day]);
 
   useEffect(() => {
     const layer = layerRef.current;
@@ -121,7 +147,15 @@ export default function MapView({
       const excluded = excludedIds.includes(attraction.id);
       const inDay = scheduledIds.has(attraction.id);
       const selected = selection?.kind === "attraction" && selection.id === attraction.id;
-      const state = selected ? "selected" : excluded || (day && !inDay) ? "faded" : "active";
+      const state = selected
+        ? "selected"
+        : day
+          ? inDay
+            ? "active"
+            : "faded"
+          : excluded
+            ? "faded"
+            : "active";
 
       L.marker([attraction.location.lat, attraction.location.lng], {
         icon: pinIcon(style.glyph, style.color, state),

@@ -140,9 +140,9 @@ export async function resolveRoute(request: RouteRequest): Promise<ResolvedRoute
       destination: { location: { latLng: { latitude: request.to.lat, longitude: request.to.lng } } },
       travelMode: TRAVEL_MODE[request.mode],
       computeAlternativeRoutes: false,
-      ...(request.mode === "rideshare" || request.mode === "car"
-        ? { routingPreference: "TRAFFIC_AWARE" }
-        : {}),
+      // Traffic-aware routing is deliberately not requested. It is billed at
+      // the higher tier, and a trip planned weeks ahead gains nothing from
+      // today's congestion.
     }),
   });
 
