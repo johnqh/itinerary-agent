@@ -1,5 +1,4 @@
 import type { Plan, TripRequest } from "@/types/workspace";
-import { SEED_DESTINATION } from "@/data/seed-tokyo";
 
 /**
  * User-facing degraded-mode copy.
@@ -8,54 +7,6 @@ import { SEED_DESTINATION } from "@/data/seed-tokyo";
  * fallback the traveller cannot see is indistinguishable from a wrong answer.
  * These are pure so the wording is testable without mounting the workspace.
  */
-
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-/** Whether the committed seed dataset actually covers this destination. */
-export function hasSeedData(destination: string): boolean {
-  const wanted = normalize(destination);
-  if (!wanted) return false;
-  const seed = normalize(SEED_DESTINATION);
-  return wanted === seed || wanted === seed.split(",")[0]!.trim();
-}
-
-/**
- * Whether the destination the form is about to submit will have real data.
- *
- * Live research being *available* is not the same as it being *used*: the
- * checkbox is opt-in and defaults to off, and a trip submitted with it off runs
- * on the seed dataset whatever the harness can do. Treating availability as
- * selection hid the mismatch warning and sent travellers to Tokyo pins under a
- * Lisbon heading. Availability that is still unknown stays quiet, because a
- * warning shown and then withdrawn is worse than one that arrives a moment late.
- */
-export function destinationHasData(input: {
-  destination: string;
-  /** The live-research checkbox as it currently stands. */
-  live: boolean;
-  /** Whether live research is possible at all; null while still unknown. */
-  liveResearch: boolean | null;
-}): boolean {
-  if (input.liveResearch === null) return true;
-  if (input.live && input.liveResearch) return true;
-  return hasSeedData(input.destination);
-}
-
-/**
- * Why the candidates on screen are what they are.
- *
- * Discovery is offline until the research tools land, so a destination the
- * seed dataset does not cover gets the seed city's attractions. Saying that
- * outright is the difference between a known limitation and a wrong itinerary.
- */
-export function seedDiscoveryNotice(destination: string): string {
-  if (hasSeedData(destination)) {
-    return `Offline seed dataset for ${SEED_DESTINATION}. Live research tools are not connected yet, so these facts were not retrieved just now.`;
-  }
-  return `Live research tools are not connected yet, so only ${SEED_DESTINATION} has data. These candidates are the offline ${SEED_DESTINATION} seed dataset and are not in ${destination.trim()}.`;
-}
 
 /**
  * The labelled units of work discovery reports.
@@ -152,13 +103,3 @@ export function liveDiscoveryProvenance(
   return warnings ? `${provenance} ${warnings}` : provenance;
 }
 
-/**
- * Why the traveller is looking at seed data instead of live research.
- *
- * The reason is included verbatim: "the harness is not reachable" and "no model
- * provider is configured" need different fixes, and collapsing them into a
- * generic failure message wastes the reader's time.
- */
-export function discoveryFallbackNotice(reason: string, destination: string): string {
-  return `${reason} ${seedDiscoveryNotice(destination)}`;
-}

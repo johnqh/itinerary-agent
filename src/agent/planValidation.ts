@@ -16,7 +16,7 @@ import {
 } from "@/planner/time";
 import { estimateTravel, haversineMeters } from "@/planner/geo";
 import { MEAL_DURATIONS, violatesCuisineConstraint } from "@/planner/meals";
-import { selectMode } from "@/planner/transport";
+import { MAX_TRANSIT_TRANSFERS, selectMode } from "@/planner/transport";
 
 /**
  * Checks an agent-produced schedule against the rules that make an itinerary
@@ -232,9 +232,9 @@ export function validateAgentPlan(
         );
       }
 
-      if (leg.mode === "transit" && (leg.transferCount ?? 0) > 0) {
+      if (leg.mode === "transit" && (leg.transferCount ?? 0) > MAX_TRANSIT_TRANSFERS) {
         violations.push(
-          `A transit leg on ${day.date} needs ${leg.transferCount} transfer(s); only direct transit is allowed.`,
+          `A transit leg on ${day.date} needs ${leg.transferCount} changes; at most ${MAX_TRANSIT_TRANSFERS} is allowed.`,
         );
       }
 

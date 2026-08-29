@@ -60,7 +60,7 @@ scheduling runs once, globally, as code.
 |---|---|---|
 | Real MCP tools | `src/agent/discovery.ts`, `scripts/setup-harness.ts` | **Verified.** A live Kyoto run returned 14 attractions and 7 restaurants, 3 sources each. |
 | Subagents | `src/agent/discovery.ts`, `discoveryProgress.ts` | **Verified.** Runs spawned 2–3 researchers; fan-out is tracked from `thread.created` / `thread.done`. |
-| Sandboxed code execution | `src/agent/optimizer.ts`, `optimizerAgent.ts` | **Partly verified.** The sandbox runs Python on the harness's local fallback with no Daytona account. The optimizer provisioned a sandbox and ran its solver four times before the OpenAI account hit its spend limit; it has not yet completed a full run. |
+| Sandboxed code execution | `src/agent/optimizer.ts`, `optimizerAgent.ts` | **Partly verified.** Python runs in the harness's built-in local sandbox, with no sandbox provider to configure. The optimizer provisioned a sandbox and ran its solver four times before the OpenAI account hit its spend limit; it has not yet completed a full run. |
 | Human checkpoint | `src/agent/adapter.ts`, `src/components/CandidateList.tsx` | **Verified at the product level** — discovery stops and nothing is scheduled until ratings are submitted. The harness-native `ask_user_question` suspension is **not built**. |
 | Persistent sessions | `src/agent/sessionStore.ts` | **Verified.** A reload restores the trip, candidates, ratings and plan. Harness-side turn resumption is not yet exercised. |
 
@@ -126,21 +126,35 @@ Without a reachable harness — or without the model and web-data connector that
 discovery names — live research is switched off, the workspace says so, and the
 trip runs on the committed seed dataset.
 
+### Reaching the routing provider
+
+Google Routes is reached the same way and for a stronger reason: the API key is
+attached by the proxy, server-side, so it never reaches the browser bundle. That
+is why `GOOGLE_MAPS_API_KEY` is deliberately **not** `VITE_`-prefixed — a
+prefixed variable is inlined into the shipped JavaScript for anyone to read.
+
+`bun run dev` and `bun run preview` are the two supported ways to serve this
+workspace, and both proxy `/gmaps`. A static build put behind any other server
+needs an equivalent reverse proxy: forward `/gmaps/*` to
+`https://routes.googleapis.com/*`, adding the `X-Goog-Api-Key` header there.
+There is deliberately no client-side alternative — a build with nothing serving
+`/gmaps` keeps every leg as a straight-line estimate and names that on screen
+rather than dropping to a silent guess, but its transit legs are gone.
+
 Every change lands through a reviewed pull request. Direct pushes to `main` are
 not part of this project's workflow.
 
-Every change lands through a reviewed pull request; direct pushes to `main` are
-not part of this workflow.
-
 ## Known limitations
 
-- **No transit legs appear.** The no-transfer transit rule is implemented and
-  tested, but with no routing provider connected transit is always treated as
-  unavailable, so every non-walking leg is walk, rideshare or car.
-- **Travel times are straight-line estimates**, scaled for road distance. They
-  are labelled as estimates everywhere they appear.
-- **The offline dataset covers one city.** Any other destination needs live
-  research; the workspace says so rather than quietly showing the wrong city.
+- **Transit needs the routing provider.** With `GOOGLE_MAPS_API_KEY` set, legs
+  carry real travel times, line names and transfer counts. Without it, transit
+  is reported unavailable rather than guessed at, and every non-walking leg is
+  rideshare or car.
+- **Travel times without a provider are straight-line estimates**, scaled for
+  road distance. They are labelled as estimates everywhere they appear.
+- **Offline datasets cover Tokyo and San Francisco.** Any other destination
+  needs live research; the workspace says so rather than quietly showing the
+  wrong city.
 - **Hours the agent could not confirm stay unknown**, and unknown hours carry a
   scoring penalty rather than an assumption.
 

@@ -1,31 +1,20 @@
-import type { Attraction, Hours, Restaurant } from "@/types/workspace";
+import type { Attraction, Restaurant } from "@/types/workspace";
+import {
+  buildAttractions,
+  buildRestaurants,
+  type SeedAttraction,
+  type SeedRestaurant,
+} from "@/data/seedShape";
 
 /**
- * Offline seed dataset: Tokyo.
+ * Offline dataset: Tokyo.
  *
- * This exists so the whole loop stays demonstrable when the research tools are
- * unavailable. The values are approximate and were not retrieved from a source
- * at run time, which is why every record carries a modest confidence and why
- * the workspace shows a degraded-mode banner whenever this data is in use.
- * Live discovery replaces it wholesale.
+ * Hand-checked rather than retrieved at run time, which is why every record
+ * carries a modest confidence and why the workspace names offline mode
+ * whenever this data is in use. Travel between these places is still resolved
+ * by the routing provider, so the transit lines shown are real even though the
+ * places came from here.
  */
-
-type WeeklyHours = { open: string; close: string; closedWeekdays?: number[] };
-
-interface SeedAttraction {
-  id: string;
-  name: string;
-  category: string;
-  lat: number;
-  lng: number;
-  description: string;
-  practicalNotes?: string;
-  hours: WeeklyHours;
-  visitMinutes: number;
-  costSummary?: string;
-  ticketRequired: boolean;
-  officialUrl?: string;
-}
 
 const SEED_ATTRACTIONS: SeedAttraction[] = [
   {
@@ -41,6 +30,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Free",
     ticketRequired: false,
     officialUrl: "https://www.senso-ji.jp/",
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Sensoji_2023.jpg/1280px-Sensoji_2023.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Hozomon_Gate%28left%29%E3%83%BBFive-storied_Pagoda%28center%29%E3%83%BBFortune_Slip_Shop%28right%29.jpg/1280px-Hozomon_Gate%28left%29%E3%83%BBFive-storied_Pagoda%28center%29%E3%83%BBFortune_Slip_Shop%28right%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Inside_the_main_hall.jpg/1280px-Inside_the_main_hall.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Sensoji_at_night_8.jpg/1280px-Sensoji_at_night_8.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "skytree",
@@ -67,6 +57,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 60,
     costSummary: "Free",
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ueno_park.jpg/1280px-Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Ueno_Seiyoken_in_the_Meiji_era.JPG/1280px-Ueno_Seiyoken_in_the_Meiji_era.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg/500px-Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tokyo-national-museum",
@@ -81,6 +72,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Around ¥1,000",
     ticketRequired: true,
     officialUrl: "https://www.tnm.jp/",
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg/1280px-Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "akihabara",
@@ -93,6 +85,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Free to browse",
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png/1280px-Sotokanda%2C_Akihabara_Electric_Town_at_night_20231114.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Akihabara_-05.jpg/330px-Akihabara_-05.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Akihabara_Night.jpg/500px-Akihabara_Night.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Akihabara_Maids.JPG/500px-Akihabara_Maids.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "imperial-gardens",
@@ -106,6 +99,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Free",
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Seimon_Ishibashi.JPG/1280px-Seimon_Ishibashi.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Tokyo_Imperial_Palace_pic_08.jpg/500px-Tokyo_Imperial_Palace_pic_08.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/%E6%98%8E%E6%B2%BB%E5%AE%AE%E6%AE%BF%E7%A9%BA%E4%B8%AD%E5%86%99%E7%9C%9F.jpg/500px-%E6%98%8E%E6%B2%BB%E5%AE%AE%E6%AE%BF%E7%A9%BA%E4%B8%AD%E5%86%99%E7%9C%9F.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Kenanfu.JPG/500px-Kenanfu.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "ginza",
@@ -117,6 +111,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "11:00", close: "20:00" },
     visitMinutes: 60,
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Ginza-WAKO_at_night.jpg/1280px-Ginza-WAKO_at_night.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Wrau-ginza-tokyo.jpg/330px-Wrau-ginza-tokyo.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Ginza_Street_in1936.jpg/500px-Ginza_Street_in1936.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Lovely_Ginza.jpg/1280px-Lovely_Ginza.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tsukiji-outer",
@@ -129,6 +124,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "06:00", close: "14:00" },
     visitMinutes: 60,
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/2018_Tsukiji_fish_market.jpg/1280px-2018_Tsukiji_fish_market.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tsukiji.CuttingFrozenTuna.jpg/500px-Tsukiji.CuttingFrozenTuna.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Tsukiji_fish_market_thuna_knife.jpg/500px-Tsukiji_fish_market_thuna_knife.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "teamlab-planets",
@@ -143,6 +139,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Around ¥3,800",
     ticketRequired: true,
     officialUrl: "https://www.teamlab.art/e/planets/",
+    photoUrls: [],
   },
   {
     id: "shibuya-crossing",
@@ -155,6 +152,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 40,
     costSummary: "Free",
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Shibuya_Crossing%2C_Aerial.jpg/1280px-Shibuya_Crossing%2C_Aerial.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Shibuya_Crossing_in_July_2026.jpg/1280px-Shibuya_Crossing_in_July_2026.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Early_summer_night_Shibuya.jpg/330px-Early_summer_night_Shibuya.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "meiji-jingu",
@@ -168,6 +166,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Free",
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Meiji_Jingu_2023-3.jpg/1280px-Meiji_Jingu_2023-3.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png/1280px-Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Jingu_gaien_air.jpg/500px-Jingu_gaien_air.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "shinjuku-gyoen",
@@ -181,6 +180,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Around ¥500",
     ticketRequired: true,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Shinjuku_Gyoen_National_Garden_-_sakura_3.JPG/1280px-Shinjuku_Gyoen_National_Garden_-_sakura_3.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Shinjuku_gyoen_sunny_autumn_day.jpg/960px-Shinjuku_gyoen_sunny_autumn_day.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Shinjuku_Gyoen_National_Garden_-_sakura_2.JPG/960px-Shinjuku_Gyoen_National_Garden_-_sakura_2.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tmg-observation",
@@ -193,6 +193,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 45,
     costSummary: "Free",
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Tokyo_Metropolitan_Government_Building_2024.jpg/1280px-Tokyo_Metropolitan_Government_Building_2024.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/2024_Tokyo_Metropolitan_Government_Building_No.1.jpg/250px-2024_Tokyo_Metropolitan_Government_Building_No.1.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Tokyo_Metropolitan_Government_Building_No.2_2009.jpg/250px-Tokyo_Metropolitan_Government_Building_No.2_2009.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "harajuku",
@@ -204,18 +205,9 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "10:00", close: "20:00" },
     visitMinutes: 50,
     ticketRequired: false,
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/JRE-Harajuku-Station-07.jpg/1280px-JRE-Harajuku-Station-07.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Omote-sando03s3200.jpg/1280px-Omote-sando03s3200.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Cat_Street%2C_Ura_Harajuku_2.jpg/1280px-Cat_Street%2C_Ura_Harajuku_2.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
 ];
-
-interface SeedRestaurant {
-  id: string;
-  name: string;
-  cuisine: string[];
-  lat: number;
-  lng: number;
-  priceLevel: 1 | 2 | 3 | 4;
-  hours: WeeklyHours;
-}
 
 const SEED_RESTAURANTS: SeedRestaurant[] = [
   { id: "r-asakusa", name: "Asakusa tempura counter", cuisine: ["japanese", "local"], lat: 35.7115, lng: 139.796, priceLevel: 2, hours: { open: "11:00", close: "20:00" } },
@@ -227,45 +219,12 @@ const SEED_RESTAURANTS: SeedRestaurant[] = [
   { id: "r-harajuku", name: "Harajuku vegetarian cafe", cuisine: ["cafe", "vegetarian"], lat: 35.6705, lng: 139.703, priceLevel: 2, hours: { open: "09:00", close: "19:00" } },
 ];
 
-function hoursForDate(weekly: WeeklyHours, date: string): Hours {
-  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
-  if (weekly.closedWeekdays?.includes(weekday)) return { status: "closed" };
-  return { status: "open", open: weekly.open, close: weekly.close };
-}
-
-/** Seed confidence is deliberately moderate: this data was not retrieved live. */
-const SEED_CONFIDENCE = 0.55;
-
 export function seedAttractions(dates: string[]): Attraction[] {
-  return SEED_ATTRACTIONS.map((seed) => ({
-    id: seed.id,
-    name: seed.name,
-    category: seed.category,
-    location: { lat: seed.lat, lng: seed.lng },
-    description: seed.description,
-    practicalNotes: seed.practicalNotes,
-    hoursByDate: Object.fromEntries(dates.map((d) => [d, hoursForDate(seed.hours, d)])),
-    estimatedVisitMinutes: seed.visitMinutes,
-    costSummary: seed.costSummary,
-    ticketRequired: seed.ticketRequired,
-    officialUrl: seed.officialUrl,
-    photoUrls: [],
-    sources: seed.officialUrl ? [{ url: seed.officialUrl, title: "Official site" }] : [],
-    confidence: SEED_CONFIDENCE,
-  }));
+  return buildAttractions(SEED_ATTRACTIONS, dates);
 }
 
 export function seedRestaurants(dates: string[]): Restaurant[] {
-  return SEED_RESTAURANTS.map((seed) => ({
-    id: seed.id,
-    name: seed.name,
-    cuisine: seed.cuisine,
-    location: { lat: seed.lat, lng: seed.lng },
-    hoursByDate: Object.fromEntries(dates.map((d) => [d, hoursForDate(seed.hours, d)])),
-    priceLevel: seed.priceLevel,
-    sources: [],
-    confidence: SEED_CONFIDENCE,
-  }));
+  return buildRestaurants(SEED_RESTAURANTS, dates);
 }
 
 export const SEED_DESTINATION = "Tokyo, Japan";

@@ -1,4 +1,5 @@
 import RatingControl from "@/components/RatingControl";
+import { categoryStyle } from "@/lib/categories";
 import type { Attraction, Rating, Selection } from "@/types/workspace";
 
 interface Props {
@@ -56,8 +57,30 @@ export default function CandidateList({
             <button
               type="button"
               onClick={() => onSelect({ kind: "attraction", id: attraction.id })}
-              className="w-full text-left"
+              className="flex w-full gap-2.5 text-left"
             >
+              {attraction.photoUrls[0] ? (
+                <img
+                  src={attraction.photoUrls[0]}
+                  alt=""
+                  loading="lazy"
+                  className="h-14 w-14 shrink-0 rounded object-cover"
+                  onError={(e) => {
+                    // Third-party hosts rate-limit and move files; a broken
+                    // frame is worse than no frame.
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <span
+                  aria-hidden
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded text-xl"
+                  style={{ backgroundColor: `${categoryStyle(attraction.category).color}1A` }}
+                >
+                  {categoryStyle(attraction.category).glyph}
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-[13px] font-medium leading-snug">{attraction.name}</span>
                 <span className="eyebrow shrink-0">{attraction.category}</span>
@@ -90,6 +113,7 @@ export default function CandidateList({
                   </span>
                 )}
               </div>
+              </span>
             </button>
             <div className="mt-2">
               <RatingControl

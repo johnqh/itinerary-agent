@@ -52,12 +52,16 @@ vi.mock("@/agent/discovery", async () => {
 
 const App = (await import("@/App")).default;
 
+/**
+ * Starts a trip that goes to the research agent. The destination decides the
+ * path now — a city with no offline dataset is researched live — so there is
+ * no toggle to set.
+ */
 async function startLiveTrip(destination: string) {
-  fireEvent.change(screen.getByDisplayValue(/Japan/), {
+  fireEvent.change(screen.getByRole("textbox", { name: /Destination/i }), {
     target: { value: destination },
   });
-  fireEvent.click(await screen.findByLabelText(/Research this destination live/));
-  fireEvent.click(screen.getByRole("button", { name: "Find attractions" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Find attractions" }));
 }
 
 describe("a run whose trip was replaced while it was in flight", () => {
@@ -65,19 +69,19 @@ describe("a run whose trip was replaced while it was in flight", () => {
     window.localStorage.clear();
     render(<App />);
 
-    await startLiveTrip("Tokyo, Japan");
+    await startLiveTrip("Osaka, Japan");
     // Give up on the slow run and plan somewhere else instead.
     fireEvent.click(await screen.findByRole("button", { name: "New trip" }));
     await startLiveTrip("Kyoto, Japan");
 
     await screen.findByRole("button", { name: "Plan these days" }, { timeout: 5000 });
-    // Long enough for the abandoned Tokyo run to finish and try to land.
+    // Long enough for the abandoned Osaka run to finish and try to land.
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     expect(document.querySelector("h1")?.textContent).toBe("Kyoto, Japan");
-    expect(screen.queryAllByText(/Tokyo, Japan — /)).toHaveLength(0);
+    expect(screen.queryAllByText(/Osaka, Japan — /)).toHaveLength(0);
     expect(screen.queryAllByText(/Kyoto, Japan — /).length).toBeGreaterThan(0);
     // Section 4.8: the banner may only state what this trip's run established.
-    expect(screen.queryByText(/Researched live from the web for Tokyo, Japan/)).toBeNull();
+    expect(screen.queryByText(/Researched live from the web for Osaka, Japan/)).toBeNull();
   });
 });

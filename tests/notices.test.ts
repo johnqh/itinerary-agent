@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { destinationHasData, discoveryFallbackNotice, discoverySteps, hasSeedData, liveDiscoveryNotice, liveDiscoveryProvenance, mealNotice, seedDiscoveryNotice } from "@/agent/notices";
-import { SEED_DESTINATION } from "@/data/seed-tokyo";
+import { discoverySteps, liveDiscoveryNotice, liveDiscoveryProvenance, mealNotice } from "@/agent/notices";
 import type { Plan, TripRequest } from "@/types/workspace";
 
 function planWith(unplaced: Plan["diagnostics"]["unplacedMeals"]): Plan {
@@ -27,33 +26,6 @@ function planWith(unplaced: Plan["diagnostics"]["unplacedMeals"]): Plan {
 }
 
 const flexible: TripRequest["meals"] = { cuisines: [], strictness: "flexible" };
-
-describe("hasSeedData", () => {
-  test("recognises the seed city", () => {
-    expect(hasSeedData(SEED_DESTINATION)).toBe(true);
-    expect(hasSeedData("  tokyo  ")).toBe(true);
-  });
-
-  test("does not claim data for anywhere else", () => {
-    expect(hasSeedData("Lisbon, Portugal")).toBe(false);
-    expect(hasSeedData("")).toBe(false);
-  });
-});
-
-describe("seedDiscoveryNotice", () => {
-  test("names seed mode for the seed city", () => {
-    const notice = seedDiscoveryNotice(SEED_DESTINATION);
-    expect(notice).toContain(SEED_DESTINATION);
-    expect(notice).toMatch(/seed/i);
-  });
-
-  test("says plainly that another city has no data", () => {
-    const notice = seedDiscoveryNotice("Lisbon, Portugal");
-    expect(notice).toContain("Lisbon, Portugal");
-    expect(notice).toContain(SEED_DESTINATION);
-    expect(notice).toMatch(/not|only/i);
-  });
-});
 
 describe("discoverySteps", () => {
   test("declares one step per unit of work it will actually do", () => {
@@ -167,49 +139,3 @@ describe("liveDiscoveryProvenance", () => {
   });
 });
 
-describe("destinationHasData", () => {
-  test("covers any destination once live research is actually running", () => {
-    expect(
-      destinationHasData({ destination: "Lisbon, Portugal", live: true, liveResearch: true }),
-    ).toBe(true);
-  });
-
-  test("does not cover an unseeded destination when live research is switched off", () => {
-    // The harness being available is not the same as it being used: with the
-    // checkbox off the trip runs on seed data and has to say so.
-    expect(
-      destinationHasData({ destination: "Lisbon, Portugal", live: false, liveResearch: true }),
-    ).toBe(false);
-  });
-
-  test("does not cover an unseeded destination when live research is unavailable", () => {
-    expect(
-      destinationHasData({ destination: "Lisbon, Portugal", live: true, liveResearch: false }),
-    ).toBe(false);
-  });
-
-  test("says nothing is missing while availability is still unknown", () => {
-    expect(
-      destinationHasData({ destination: "Lisbon, Portugal", live: true, liveResearch: null }),
-    ).toBe(true);
-  });
-
-  test("always covers the seed city, however live research is set", () => {
-    for (const liveResearch of [true, false, null]) {
-      expect(
-        destinationHasData({ destination: SEED_DESTINATION, live: false, liveResearch }),
-      ).toBe(true);
-    }
-  });
-});
-
-describe("discoveryFallbackNotice", () => {
-  test("says why live research was not used and what is on screen instead", () => {
-    const notice = discoveryFallbackNotice(
-      "The agent harness is not reachable.",
-      "Lisbon, Portugal",
-    );
-    expect(notice).toMatch(/not reachable/i);
-    expect(notice).toMatch(/Tokyo/i);
-  });
-});

@@ -1,15 +1,14 @@
 import { useState } from "react";
-import type { DiscoveryOptions, MealStrictness, Pace, TripRequest } from "@/types/workspace";
-import { destinationHasData } from "@/agent/notices";
+import type { MealStrictness, Pace, TripRequest } from "@/types/workspace";
 import { isoDaysFromNow } from "@/lib/dates";
 import { MAX_TRIP_DAYS, validateTripDates } from "@/planner/build";
-import { SEED_DESTINATION } from "@/data/seed-tokyo";
+import { coveredCityLabels, datasetFor } from "@/data/datasets";
 
 const CUISINES = ["japanese", "local", "italian", "vegetarian", "cafe", "quick bite"];
 const PACES: Pace[] = ["relaxed", "balanced", "packed"];
 
 interface TripFormProps {
-  onSubmit: (trip: TripRequest, options?: DiscoveryOptions) => void;
+  onSubmit: (trip: TripRequest) => void;
   /**
    * Whether live research is actually available. Null while still unknown, so
    * the form says nothing rather than guessing: a stale "not connected" warning
@@ -19,7 +18,7 @@ interface TripFormProps {
 }
 
 export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
-  const [destination, setDestination] = useState(SEED_DESTINATION);
+  const [destination, setDestination] = useState("San Francisco, USA");
   const [startDate, setStartDate] = useState(isoDaysFromNow(14));
   const [endDate, setEndDate] = useState(isoDaysFromNow(16));
   const [hasRentalCar, setHasRentalCar] = useState(false);
@@ -27,13 +26,12 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
   const [cuisines, setCuisines] = useState<string[]>(["japanese", "local"]);
   const [strictness, setStrictness] = useState<MealStrictness>("prefer");
   const [notes, setNotes] = useState("");
-  const [live, setLive] = useState(false);
 
   // The planner enforces exactly this rule, so the two cannot disagree.
   const dateError = validateTripDates(startDate, endDate);
-  // Coverage follows the checkbox, not the harness: live research that is
-  // available but switched off still plans this trip from the seed dataset.
-  const destinationCovered = destinationHasData({ destination, live, liveResearch });
+  // The destination decides how the trip is researched: a covered city answers
+  // from its dataset instantly, anywhere else goes to the research agent.
+  const dataset = datasetFor(destination);
 
   function toggleCuisine(cuisine: string) {
     setCuisines((current) =>
@@ -53,7 +51,7 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
       hasRentalCar,
       pace,
       meals: { cuisines, notes: notes.trim() || undefined, strictness },
-    }, { live: live && liveResearch === true });
+    });
   }
 
   return (
@@ -77,39 +75,25 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
           required
           className="mt-1 w-full rounded-md border border-hairline bg-surface px-3 py-2 text-[13px]"
         />
-        {liveResearch === false && (
-          <span className="mt-1 block text-xs text-muted">
-            Live research is not connected, so {SEED_DESTINATION} is the only city
-            with data.
-          </span>
-        )}
       </label>
-      {liveResearch === true && (
-        <div className="rounded-md border border-hairline bg-white px-3 py-2.5">
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={live}
-              onChange={(e) => setLive(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="font-medium">Research this destination live</span>
-              <span className="mt-0.5 block text-xs text-muted">
-                Reads the open web for real attractions, hours and sources, so any
-                city works. It takes several minutes. Leave this off to plan
-                instantly from the offline {SEED_DESTINATION} dataset.
-              </span>
-            </span>
-          </label>
-        </div>
-      )}
-      {!destinationCovered && (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          There is no data for {destination.trim() || "that destination"} yet. Planning
-          will run on the offline {SEED_DESTINATION} dataset, so the attractions, the
-          map and the travel times will all be {SEED_DESTINATION}, not{" "}
-          {destination.trim() || "your destination"}.
+
+      {dataset ? (
+        <p className="rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-muted">
+          <span className="font-medium text-ink">{dataset.label}</span> is covered
+          offline, so its places load instantly. Travel between them is routed for
+          real when a routing key is configured.
+        </p>
+      ) : liveResearch === false ? (
+        <p className="rounded-md border border-car/30 bg-car/5 px-3 py-2 text-xs text-ink/80">
+          The research agent is not reachable, and there is no offline data for{" "}
+          {destination.trim() || "that destination"}. Try {coveredCityLabels().join(" or ")},
+          which need no research at all.
+        </p>
+      ) : (
+        <p className="rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-muted">
+          No offline data for {destination.trim() || "that destination"}, so the
+          research agent will look it up on the open web. That takes several minutes.
+          {" "}{coveredCityLabels().join(" and ")} load instantly.
         </p>
       )}
 
