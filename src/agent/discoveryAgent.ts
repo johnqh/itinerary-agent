@@ -162,12 +162,22 @@ Coverage: aim for at least 12 attractions spanning different categories and
 neighbourhoods, plus at least 6 restaurants spread across the same areas so a
 day anywhere in the city has somewhere to eat.
 
-Restaurant hours decide whether a meal can be scheduled at all, so treat them
-as the point of the record rather than a detail. At least three restaurants
-must be confirmed open in the evening, still serving at 19:00 or later, or the
-traveller will have nowhere to eat dinner. At least three must be open at
-midday. A restaurant whose hours you cannot confirm is close to useless here,
-so prefer one whose hours you can verify over a more famous one you cannot.
+Restaurants are not a footnote to this list, they are half of it. A meal is
+scheduled next to whatever the traveller is doing at the time, so a restaurant
+across the city from that afternoon's route is the same as no restaurant at
+all. What matters is coverage, not count: every area you return attractions in
+needs its own places to eat, including the outlying ones.
+
+For each distinct area or neighbourhood you return attractions in, return at
+least three restaurants within roughly a kilometre of them, and make sure at
+least one of those three is confirmed open in the evening, still serving at
+20:00 or later. A place whose hours you cannot confirm is close to useless
+here, so prefer one whose hours you can verify over a more famous one you
+cannot.
+
+Vary them: a mix of prices, and a mix of kinds rather than six versions of the
+same cuisine, so a traveller eating twice a day for several days is not sent to
+the same sort of meal every time.
 
 Budget: aim to finish in roughly 40 tool calls. Spending a hundred lookups to
 add a fourteenth attraction is a bad trade; breadth of coverage and confirmed
@@ -187,6 +197,7 @@ export function discoveryPrompt(trip: TripRequest, dates: string[]): string {
     `Getting around: ${trip.hasRentalCar ? "has a rental car" : "on foot and public transport"}`,
     `Food preferences: ${cuisines}`,
     "",
+    `This trip has ${dates.length * 2} meals to seat, so return at least ${Math.max(18, dates.length * 6)} restaurants — roughly three times the meals — spread across the areas the attractions are in.`,
     "Find the attractions and restaurants worth considering for this trip.",
     "Resolve opening hours for each of the listed trip dates specifically:",
     "many places close one weekday, and that changes the plan.",
