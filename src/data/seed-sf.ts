@@ -293,7 +293,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 30,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Mission_High_School_%28cropped%29.jpg/1280px-Mission_High_School_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Misi%C3%B3n_San_Francisco_de_As%C3%ADs_-_San_Francisco_%28California%29_008_%28cropped%29.jpg/1280px-Misi%C3%B3n_San_Francisco_de_As%C3%ADs_-_San_Francisco_%28California%29_008_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/El_Capitan_Hotel%2C_San_Francisco_%28cropped%29.jpg/1280px-El_Capitan_Hotel%2C_San_Francisco_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Clarion_alley_sf.jpg/1280px-Clarion_alley_sf.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "wave-organ",

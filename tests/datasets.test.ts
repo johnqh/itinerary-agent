@@ -127,6 +127,10 @@ describe("seed data is presentable", () => {
     "Kisenosato",
     "Shinobugaoka_Junior_High_School",
     "sanborn",
+    "Mission_High_School",
+    "Misión_San_Francisco_de_Asís",
+    "El_Capitan_Hotel",
+    "Komazawa_Gymnasium",
   ];
 
   test("no gallery shows a photograph of somewhere else", () => {
@@ -139,6 +143,43 @@ describe("seed data is presentable", () => {
               `${place.name} shows ${wrong}`,
             ).not.toContain(wrong.toLowerCase());
           }
+        }
+      }
+    }
+  });
+
+  /**
+   * The file a URL ultimately points at, whatever size was asked for.
+   *
+   * A Wikimedia thumbnail repeats the file name: the width goes on the last
+   * segment and the segment before it is the file itself. Comparing whole
+   * URLs would call 500px and 1280px of one photograph two photographs, which
+   * is exactly how the same picture ends up under two names unnoticed.
+   */
+  function underlyingFile(url: string): string {
+    const segments = url.split("?")[0]!.split("/");
+    const last = segments.length - 1;
+    const file = url.includes("/thumb/") && last >= 1 ? segments[last - 1]! : segments[last]!;
+    return decodeURIComponent(file).toLowerCase();
+  }
+
+  /**
+   * A named list only catches the wrong photographs somebody has already
+   * noticed. One file hung under two names catches them by construction: two
+   * places are not the same place, so at most one of the two captions is
+   * true and the gallery is lying to the traveller either way.
+   */
+  test("no photograph is hung under two different places", () => {
+    for (const dataset of OFFLINE_DATASETS) {
+      const shownBy = new Map<string, string>();
+      for (const place of dataset.attractions(dates)) {
+        for (const url of place.photoUrls) {
+          const file = underlyingFile(url);
+          const owner = shownBy.get(file);
+          expect(owner ?? place.name, `${place.name} and ${owner} both show ${file}`).toBe(
+            place.name,
+          );
+          shownBy.set(file, place.name);
         }
       }
     }
