@@ -194,6 +194,8 @@ export interface DegradedState {
 export interface Workspace {
   phase: Phase;
   trip: TripRequest | null;
+  /** The harness session this trip lives in, or null in offline seed mode. */
+  sessionId: string | null;
   attractions: Attraction[];
   restaurants: Restaurant[];
   ratings: Record<string, Rating>;
@@ -202,10 +204,19 @@ export interface Workspace {
   degraded: DegradedState;
 }
 
+export interface DiscoveryOptions {
+  /**
+   * Research the destination live from the web rather than using the offline
+   * dataset. Off by default: a live run takes minutes, which is the wrong
+   * default for someone trying the product out.
+   */
+  live?: boolean;
+}
+
 /** The interface the workspace UI consumes. The adapter is its only implementer. */
 export interface ItineraryAgent {
   workspace: Workspace;
-  createTrip(trip: TripRequest): Promise<void>;
+  createTrip(trip: TripRequest, options?: DiscoveryOptions): Promise<void>;
   discover(): Promise<void>;
   setRating(attractionId: string, rating: Rating): void;
   submitRatings(): Promise<void>;

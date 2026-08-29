@@ -16,13 +16,47 @@ body,
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #f7f7f6;
-  color: #1c1c1a;
+  background: theme("colors.canvas");
+  color: theme("colors.ink");
+  font-family: theme("fontFamily.sans");
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Times, durations and distances are data: align them in columns. */
+.tabular {
+  font-family: theme("fontFamily.mono");
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.eyebrow {
+  font-family: theme("fontFamily.mono");
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: theme("letterSpacing.eyebrow");
+  text-transform: uppercase;
+  color: theme("colors.muted");
 }
 
 .leaflet-container {
   height: 100%;
   width: 100%;
-  background: #e8e8e4;
+  background: #dfe5ea;
+  font-family: theme("fontFamily.sans");
+}
+
+/* A visible focus ring everywhere, not just where a component remembered one. */
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid theme("colors.transit");
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

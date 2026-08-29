@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { discoverySteps, hasSeedData, mealNotice, seedDiscoveryNotice } from "@/agent/notices";
+import { discoveryFallbackNotice, discoverySteps, hasSeedData, liveDiscoveryNotice, mealNotice, seedDiscoveryNotice } from "@/agent/notices";
 import { SEED_DESTINATION } from "@/data/seed-tokyo";
 import type { Plan, TripRequest } from "@/types/workspace";
 
@@ -107,5 +107,41 @@ describe("mealNotice", () => {
     expect(mealNotice(null, { cuisines: [], strictness: "flexible", notes: "vegan" })).toContain(
       "vegan",
     );
+  });
+});
+
+describe("liveDiscoveryNotice", () => {
+  test("is silent when live research produced a healthy candidate set", () => {
+    expect(liveDiscoveryNotice({ attractionCount: 14, restaurantCount: 7, rejected: [] })).toBeNull();
+  });
+
+  test("warns when too few attractions came back to plan a trip", () => {
+    const notice = liveDiscoveryNotice({ attractionCount: 3, restaurantCount: 6, rejected: [] });
+    expect(notice).toMatch(/3 attractions/i);
+  });
+
+  test("warns when there are too few restaurants to seat meals", () => {
+    const notice = liveDiscoveryNotice({ attractionCount: 14, restaurantCount: 1, rejected: [] });
+    expect(notice).toMatch(/restaurant/i);
+  });
+
+  test("reports records that were discarded as unusable", () => {
+    const notice = liveDiscoveryNotice({
+      attractionCount: 14,
+      restaurantCount: 7,
+      rejected: [{ name: "Somewhere", reason: "No usable coordinates were returned." }],
+    });
+    expect(notice).toMatch(/1 result/i);
+  });
+});
+
+describe("discoveryFallbackNotice", () => {
+  test("says why live research was not used and what is on screen instead", () => {
+    const notice = discoveryFallbackNotice(
+      "The agent harness is not reachable.",
+      "Lisbon, Portugal",
+    );
+    expect(notice).toMatch(/not reachable/i);
+    expect(notice).toMatch(/Tokyo/i);
   });
 });

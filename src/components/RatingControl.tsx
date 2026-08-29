@@ -4,7 +4,7 @@ const LABELS: Record<Rating, string> = {
   0: "Not interested",
   1: "Maybe",
   2: "Interested",
-  3: "Strong interest",
+  3: "Really want to",
   4: "Must see",
 };
 
@@ -15,11 +15,24 @@ interface Props {
   onChange: (rating: Rating) => void;
 }
 
+/**
+ * Interest, as a five-stop scale.
+ *
+ * The scale reads left to right from "skip it" to "must see", and the filled
+ * run makes the current choice legible without reading the number. Zero is
+ * shown as a distinct stop rather than an empty one, because it is a real
+ * instruction to the planner, not the absence of an answer.
+ */
 export default function RatingControl({ value, onChange }: Props) {
   return (
-    <div className="flex gap-1" role="group" aria-label="Interest rating">
+    <div
+      className="inline-flex overflow-hidden rounded border border-hairline"
+      role="group"
+      aria-label="Interest"
+    >
       {VALUES.map((rating) => {
         const active = value === rating;
+        const filled = value !== undefined && rating > 0 && rating <= value;
         return (
           <button
             key={rating}
@@ -28,13 +41,17 @@ export default function RatingControl({ value, onChange }: Props) {
             aria-label={LABELS[rating]}
             aria-pressed={active}
             onClick={() => onChange(rating)}
-            className={`h-7 w-7 rounded-md border text-xs font-medium transition ${
-              active
-                ? "border-neutral-900 bg-neutral-900 text-white"
-                : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-500"
+            className={`h-6 w-7 border-r border-hairline text-[11px] font-medium leading-none transition-colors last:border-r-0 ${
+              active && rating === 0
+                ? "bg-muted text-white"
+                : active
+                  ? "bg-ink text-white"
+                  : filled
+                    ? "bg-ink/10 text-ink"
+                    : "bg-surface text-muted hover:bg-ink/5"
             }`}
           >
-            {rating}
+            {rating === 0 ? "×" : rating}
           </button>
         );
       })}

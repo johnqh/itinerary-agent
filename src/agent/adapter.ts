@@ -1,13 +1,21 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type {
+  DiscoveryOptions,
   ItineraryAgent,
   Rating,
   TripRequest,
   Workspace,
 } from "@/types/workspace";
 import { buildPlan, tripDates } from "@/planner/build";
-import { discoverySteps, mealNotice, seedDiscoveryNotice } from "@/agent/notices";
+import {
+  discoveryFallbackNotice,
+  discoverySteps,
+  liveDiscoveryNotice,
+  mealNotice,
+} from "@/agent/notices";
 import { seedAttractions, seedRestaurants } from "@/data/seed-tokyo";
+import { harnessStatus } from "@/agent/client";
+import { runLiveDiscovery } from "@/agent/discovery";
 
 /**
  * The adapter: the only module that knows how the agent is driven.
@@ -21,6 +29,7 @@ import { seedAttractions, seedRestaurants } from "@/data/seed-tokyo";
 const EMPTY: Workspace = {
   phase: "setup",
   trip: null,
+  sessionId: null,
   attractions: [],
   restaurants: [],
   ratings: {},
@@ -75,43 +84,116 @@ export function useItineraryAgent(): ItineraryAgent {
     };
   }, []);
 
-  const runDiscovery = useCallback(async (trip: TripRequest) => {
-    // The counter's denominator is the step list itself, so discovery can never
-    // finish while the bar still claims work it was never going to do.
-    const steps = discoverySteps(tripDates(trip));
-    setWorkspace((current) => ({
-      ...current,
-      phase: "discovering",
-      progress: { label: steps[0]!, done: 0, total: steps.length },
-    }));
+  /**
+   * Fills the workspace with seed data and says why live research was skipped.
+   *
+   * The simulated step delay exists only so the traveller sees the phases the
+   * live run would report; it is cosmetic and deliberately brief.
+   */
+  const runSeedDiscovery = useCallback(
+    async (trip: TripRequest, reason: string) => {
+      const dates = tripDates(trip);
+      const steps = discoverySteps(dates);
+      const perStep = Math.max(40, Math.round(DISCOVERY_RUN_MS / steps.length));
 
-    const perStep = Math.max(40, Math.round(DISCOVERY_RUN_MS / steps.length));
-    for (const [index, label] of steps.entries()) {
-      await delay(perStep);
-      const done = index + 1;
-      setWorkspace((current) =>
-        current.progress
-          ? { ...current, progress: { label, done, total: steps.length } }
-          : current,
-      );
-    }
+      for (const [index, label] of steps.entries()) {
+        await delay(perStep);
+        const done = index + 1;
+        setWorkspace((current) =>
+          current.phase === "discovering"
+            ? { ...current, progress: { label, done, total: steps.length } }
+            : current,
+        );
+      }
 
-    setWorkspace((current) => {
-      if (!current.trip) return current;
-      const resolved = tripDates(current.trip);
-      return {
+      setWorkspace((current) => ({
         ...current,
         phase: "rating",
-        attractions: seedAttractions(resolved),
-        restaurants: seedRestaurants(resolved),
+        attractions: seedAttractions(dates),
+        restaurants: seedRestaurants(dates),
         progress: null,
         degraded: {
           ...current.degraded,
-          discovery: seedDiscoveryNotice(current.trip.destination),
+          discovery: discoveryFallbackNotice(reason, trip.destination),
         },
-      };
-    });
-  }, []);
+      }));
+    },
+    [],
+  );
+
+  const runDiscovery = useCallback(
+    async (trip: TripRequest, options?: DiscoveryOptions) => {
+      const dates = tripDates(trip);
+
+      // The offline dataset is the default because live research takes minutes.
+      // Nothing about that is hidden: the banner says which one produced the
+      // candidates on screen.
+      if (!options?.live) {
+        setWorkspace((current) => ({ ...current, phase: "discovering" }));
+        await runSeedDiscovery(
+          trip,
+          "Live web research is switched off for this trip.",
+        );
+        return;
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        phase: "discovering",
+        progress: { label: "Checking research tools", done: 0, total: 1 },
+      }));
+
+      const status = await harnessStatus();
+      if (!status.available) {
+        await runSeedDiscovery(trip, status.reason);
+        return;
+      }
+
+      try {
+        const outcome = await runLiveDiscovery({
+          trip,
+          dates,
+          onProgress: (progress) =>
+            setWorkspace((current) =>
+              current.phase === "discovering" ? { ...current, progress } : current,
+            ),
+        });
+
+        // Research that returns nothing usable is a failed run, not an empty
+        // city. Falling back beats showing a traveller an empty map.
+        if (outcome.attractions.length === 0) {
+          await runSeedDiscovery(
+            trip,
+            "Live research returned no usable attractions.",
+          );
+          return;
+        }
+
+        setWorkspace((current) => ({
+          ...current,
+          phase: "rating",
+          sessionId: outcome.sessionId,
+          attractions: outcome.attractions,
+          restaurants: outcome.restaurants,
+          progress: null,
+          degraded: {
+            ...current.degraded,
+            discovery: liveDiscoveryNotice({
+              attractionCount: outcome.attractions.length,
+              restaurantCount: outcome.restaurants.length,
+              rejected: outcome.rejected,
+            }),
+          },
+        }));
+      } catch (error) {
+        await runSeedDiscovery(
+          trip,
+          error instanceof Error ? error.message : "Live research failed.",
+        );
+      }
+    },
+    [runSeedDiscovery],
+  );
 
   const discover = useCallback(async () => {
     const trip = workspaceRef.current.trip;
@@ -119,9 +201,9 @@ export function useItineraryAgent(): ItineraryAgent {
   }, [runDiscovery]);
 
   const createTrip = useCallback(
-    async (trip: TripRequest) => {
+    async (trip: TripRequest, options?: DiscoveryOptions) => {
       setWorkspace({ ...EMPTY, trip, phase: "setup" });
-      await runDiscovery(trip);
+      await runDiscovery(trip, options);
     },
     [runDiscovery],
   );

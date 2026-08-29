@@ -153,7 +153,7 @@ export default function MapView({
 
   return (
     <div className="relative h-full w-full">
-      <div ref={containerRef} className="h-full w-full bg-neutral-200" />
+      <div ref={containerRef} className="h-full w-full bg-hairline" />
       {tilesFailed && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[400] p-2">
           <p className="pointer-events-auto rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow">

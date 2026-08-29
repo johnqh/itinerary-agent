@@ -33,8 +33,8 @@ export default function CandidateList({
             key={attraction.id}
             className={`rounded-md border px-3 py-2 ${
               selection?.kind === "attraction" && selection.id === attraction.id
-                ? "border-neutral-900 bg-white"
-                : "border-neutral-200 bg-white"
+                ? "border-ink bg-white"
+                : "border-hairline bg-white"
             } ${excluded ? "opacity-60" : ""}`}
           >
             <button
@@ -43,30 +43,28 @@ export default function CandidateList({
               className="w-full text-left"
             >
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-medium">{attraction.name}</span>
-                <span className="shrink-0 text-xs capitalize text-neutral-500">
-                  {attraction.category}
-                </span>
+                <span className="text-[13px] font-medium leading-snug">{attraction.name}</span>
+                <span className="eyebrow shrink-0">{attraction.category}</span>
               </div>
-              <p className="mt-0.5 line-clamp-2 text-xs text-neutral-600">
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted">
                 {attraction.description}
               </p>
               <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-                <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-neutral-600">
+                <span className="tabular rounded bg-ink/5 px-1.5 py-0.5 text-muted">
                   {attraction.estimatedVisitMinutes} min
                 </span>
                 {attraction.ticketRequired && (
-                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-purple-800">
+                  <span className="rounded bg-rideshare/10 px-1.5 py-0.5 text-rideshare">
                     Ticket needed
                   </span>
                 )}
                 {closedOnSomeDate(attraction, tripDates) && (
-                  <span className="rounded bg-red-100 px-1.5 py-0.5 text-red-800">
+                  <span className="rounded bg-car/10 px-1.5 py-0.5 text-car">
                     Closed some days
                   </span>
                 )}
                 {excluded && (
-                  <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-neutral-700">
+                  <span className="rounded bg-ink/10 px-1.5 py-0.5 text-muted">
                     Not scheduled
                   </span>
                 )}

@@ -70,3 +70,53 @@ export function mealNotice(plan: Plan | null, meals: TripRequest["meals"]): stri
 
   return parts.length > 0 ? parts.join(" ") : null;
 }
+
+/** Enough candidates that a multi-day plan has real choices to make. */
+const HEALTHY_ATTRACTION_COUNT = 8;
+/** Below this, some day is likely to have nowhere to eat near its route. */
+const HEALTHY_RESTAURANT_COUNT = 4;
+
+export interface LiveDiscoverySummary {
+  attractionCount: number;
+  restaurantCount: number;
+  rejected: { name: string; reason: string }[];
+}
+
+/**
+ * What was thin or discarded about a live research run, or null when it went
+ * well. A run that quietly returns three attractions produces a poor itinerary
+ * that looks like a planning failure rather than a research one.
+ */
+export function liveDiscoveryNotice(summary: LiveDiscoverySummary): string | null {
+  const parts: string[] = [];
+
+  if (summary.attractionCount < HEALTHY_ATTRACTION_COUNT) {
+    parts.push(
+      `Research returned only ${summary.attractionCount} attractions, so the itinerary has little to choose from.`,
+    );
+  }
+  if (summary.restaurantCount < HEALTHY_RESTAURANT_COUNT) {
+    parts.push(
+      `Only ${summary.restaurantCount} restaurant${summary.restaurantCount === 1 ? "" : "s"} were found, so some meals may not be seatable near the route.`,
+    );
+  }
+  if (summary.rejected.length > 0) {
+    const reasons = [...new Set(summary.rejected.map((r) => r.reason))];
+    parts.push(
+      `${summary.rejected.length} result${summary.rejected.length === 1 ? " was" : "s were"} discarded as unusable. ${reasons.join(" ")}`,
+    );
+  }
+
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+/**
+ * Why the traveller is looking at seed data instead of live research.
+ *
+ * The reason is included verbatim: "the harness is not reachable" and "no model
+ * provider is configured" need different fixes, and collapsing them into a
+ * generic failure message wastes the reader's time.
+ */
+export function discoveryFallbackNotice(reason: string, destination: string): string {
+  return `${reason} ${seedDiscoveryNotice(destination)}`;
+}

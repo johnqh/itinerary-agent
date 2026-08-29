@@ -15,48 +15,48 @@ function hoursLabel(attraction: Attraction, date: string): string {
 
 export default function DetailPanel({ attraction, tripDates, onClose }: Props) {
   return (
-    <aside className="max-h-[60%] w-80 overflow-y-auto rounded-lg border border-neutral-300 bg-white/95 p-4 shadow-lg backdrop-blur">
+    <aside className="max-h-[60%] w-80 overflow-y-auto rounded-lg border border-hairline bg-white/95 p-4 shadow-lg backdrop-blur">
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-base font-semibold leading-snug">{attraction.name}</h2>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="rounded px-1.5 text-neutral-500 hover:bg-neutral-100"
+          className="rounded px-1.5 text-muted hover:bg-ink/5"
         >
           ×
         </button>
       </div>
 
-      <p className="mt-2 text-sm text-neutral-700">{attraction.description}</p>
+      <p className="mt-2 text-sm text-muted">{attraction.description}</p>
       {attraction.practicalNotes && (
-        <p className="mt-2 text-xs text-neutral-600">{attraction.practicalNotes}</p>
+        <p className="mt-2 text-xs text-muted">{attraction.practicalNotes}</p>
       )}
 
       <dl className="mt-3 space-y-1 text-xs">
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Typical visit</dt>
+          <dt className="text-muted">Typical visit</dt>
           <dd>{attraction.estimatedVisitMinutes} min</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Cost</dt>
+          <dt className="text-muted">Cost</dt>
           <dd>{attraction.costSummary ?? "Unknown"}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Ticket</dt>
+          <dt className="text-muted">Ticket</dt>
           <dd>{attraction.ticketRequired ? "Required" : "Not required"}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Source confidence</dt>
+          <dt className="text-muted">Source confidence</dt>
           <dd>{Math.round(attraction.confidence * 100)}%</dd>
         </div>
       </dl>
 
-      <h3 className="mt-3 text-xs font-medium text-neutral-500">Opening hours</h3>
+      <h3 className="mt-3 text-xs font-medium text-muted">Opening hours</h3>
       <ul className="mt-1 space-y-0.5 text-xs">
         {tripDates.map((date) => (
           <li key={date} className="flex justify-between gap-2">
-            <span className="text-neutral-500">{date}</span>
+            <span className="text-muted">{date}</span>
             <span>{hoursLabel(attraction, date)}</span>
           </li>
         ))}
@@ -64,7 +64,7 @@ export default function DetailPanel({ attraction, tripDates, onClose }: Props) {
 
       {attraction.sources.length > 0 && (
         <>
-          <h3 className="mt-3 text-xs font-medium text-neutral-500">Sources</h3>
+          <h3 className="mt-3 text-xs font-medium text-muted">Sources</h3>
           <ul className="mt-1 space-y-0.5 text-xs">
             {attraction.sources.map((source) => (
               <li key={source.url}>

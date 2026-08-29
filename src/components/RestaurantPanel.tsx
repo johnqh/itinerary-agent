@@ -20,7 +20,7 @@ function hoursLabel(restaurant: Restaurant, date: string): string {
  */
 export default function RestaurantPanel({ restaurant, meal, tripDates, onClose }: Props) {
   return (
-    <aside className="max-h-[60%] w-80 overflow-y-auto rounded-lg border border-neutral-300 bg-white/95 p-4 shadow-lg backdrop-blur">
+    <aside className="max-h-[60%] w-80 overflow-y-auto rounded-lg border border-hairline bg-white/95 p-4 shadow-lg backdrop-blur">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold leading-snug">{restaurant.name}</h2>
@@ -30,7 +30,7 @@ export default function RestaurantPanel({ restaurant, meal, tripDates, onClose }
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="rounded px-1.5 text-neutral-500 hover:bg-neutral-100"
+          className="rounded px-1.5 text-muted hover:bg-ink/5"
         >
           ×
         </button>
@@ -38,24 +38,24 @@ export default function RestaurantPanel({ restaurant, meal, tripDates, onClose }
 
       <dl className="mt-3 space-y-1 text-xs">
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Cuisine</dt>
+          <dt className="text-muted">Cuisine</dt>
           <dd className="capitalize">{restaurant.cuisine.join(", ") || "Unknown"}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Price</dt>
+          <dt className="text-muted">Price</dt>
           <dd>{restaurant.priceLevel ? "¥".repeat(restaurant.priceLevel) : "Unknown"}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Source confidence</dt>
+          <dt className="text-muted">Source confidence</dt>
           <dd>{Math.round(restaurant.confidence * 100)}%</dd>
         </div>
       </dl>
 
-      <h3 className="mt-3 text-xs font-medium text-neutral-500">Opening hours</h3>
+      <h3 className="mt-3 text-xs font-medium text-muted">Opening hours</h3>
       <ul className="mt-1 space-y-0.5 text-xs">
         {tripDates.map((date) => (
           <li key={date} className="flex justify-between gap-2">
-            <span className="text-neutral-500">{date}</span>
+            <span className="text-muted">{date}</span>
             <span>{hoursLabel(restaurant, date)}</span>
           </li>
         ))}
@@ -63,7 +63,7 @@ export default function RestaurantPanel({ restaurant, meal, tripDates, onClose }
 
       {restaurant.sources.length > 0 && (
         <>
-          <h3 className="mt-3 text-xs font-medium text-neutral-500">Sources</h3>
+          <h3 className="mt-3 text-xs font-medium text-muted">Sources</h3>
           <ul className="mt-1 space-y-0.5 text-xs">
             {restaurant.sources.map((source) => (
               <li key={source.url}>
