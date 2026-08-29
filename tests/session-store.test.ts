@@ -309,6 +309,33 @@ describe("refusing records that would crash or mislead the workspace", () => {
     expect(loadSession(storage, NOW)).toBeNull();
   });
 
+  /**
+   * The form and the planner enforce one rule about trip dates. Storage is a
+   * third way in, and a range the planner rejects expands to no dates at all —
+   * a trip that renders as a header over an empty itinerary rather than a trip
+   * that never restored.
+   */
+  test("rejects a record whose last day falls before its first", () => {
+    const storage = tamper((raw) => {
+      (raw.trip as unknown as Record<string, unknown>).endDate = "2026-09-01";
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose dates are not calendar dates", () => {
+    const storage = tamper((raw) => {
+      (raw.trip as unknown as Record<string, unknown>).startDate = "2026-02-31";
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record covering more days than the planner supports", () => {
+    const storage = tamper((raw) => {
+      (raw.trip as unknown as Record<string, unknown>).endDate = "2026-12-31";
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
   test("rejects a record whose degraded notices are not notices", () => {
     const storage = tamper((raw) => {
       raw.degraded = { discovery: 12 } as never;

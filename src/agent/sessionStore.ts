@@ -9,6 +9,7 @@ import type {
   Workspace,
 } from "@/types/workspace";
 import { parseClock } from "@/planner/time";
+import { validateTripDates } from "@/planner/build";
 
 /**
  * Keeps a trip across a page reload.
@@ -76,6 +77,10 @@ function readTrip(value: unknown): TripRequest | null {
   const { destination, startDate, endDate, hasRentalCar, pace, meals } = value;
   if (typeof destination !== "string" || !destination.trim()) return null;
   if (typeof startDate !== "string" || typeof endDate !== "string") return null;
+  // The same rule the form and the planner apply, so the three cannot
+  // disagree. A range the planner rejects expands to no dates at all, which
+  // would restore a header over an empty itinerary.
+  if (validateTripDates(startDate, endDate)) return null;
   if (pace !== "relaxed" && pace !== "balanced" && pace !== "packed") return null;
   // A missing rental car is not "no rental car": it decides which days may
   // drive, so guessing it would re-plan the trip around a choice the traveller
