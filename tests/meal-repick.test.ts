@@ -249,4 +249,29 @@ describe("repickMeals across both meals of a day", () => {
     expect(result.items[0]!.refId).toBe("shared");
     expect(result.items[2]!.refId).toBe("spare");
   });
+
+  test("a retained meal is still a stop the next meal can be judged against", () => {
+    // Morning and afternoon both empty, so dinner's previous stop is lunch
+    // itself. A meal kept as it was is still somewhere the traveller will be,
+    // and the meal after it has to be able to measure the walk from there.
+    const backToBack: PlanItem[] = [
+      { kind: "meal", refId: "shared", meal: "lunch", startTime: "12:30", endTime: "13:30" },
+      { kind: "meal", refId: "shared", meal: "dinner", startTime: "18:00", endTime: "19:15" },
+      { kind: "attraction", refId: "c", startTime: "20:00", endTime: "21:00" },
+    ];
+    const pool = [
+      restaurant("shared", 37.803, -122.4),
+      restaurant("spare", 37.8035, -122.4005),
+    ];
+    const result = repickMeals(
+      backToBack,
+      pool,
+      new Map([["c", C]]),
+      trip,
+      DATE,
+      [],
+    );
+    expect(result.items[0]!.refId).toBe("shared");
+    expect(result.items[1]!.refId).toBe("spare");
+  });
 });

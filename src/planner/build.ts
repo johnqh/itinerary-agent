@@ -812,6 +812,12 @@ export function repickMeals(
     if (!before || !previous) {
       chosen.add(item.refId);
       claimedToday.add(item.refId);
+      // A meal kept as it was is still somewhere the traveller will be, so it
+      // has to be on the map for whatever comes after it: a day with no
+      // morning puts the next meal directly after this one, and that meal is
+      // judged against where it walks from.
+      const retained = restaurants.find((r) => r.id === item.refId);
+      if (retained) positions.set(retained.id, retained.location);
       return;
     }
 
