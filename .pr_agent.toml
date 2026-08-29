@@ -1,0 +1,30 @@
+# Qodo Merge configuration.
+# Read from the root of the default branch only.
+# Docs: https://docs.qodo.ai/qodo-documentation/qodo-merge/configuration/configuration-file
+
+[github_app]
+# Run automatically when a pull request is opened.
+pr_commands = [
+    "/describe",
+    "/review",
+    "/improve",
+]
+
+[pr_reviewer]
+extra_instructions = """
+This repository is an AI trip-planning agent built on an agent harness.
+
+Pay particular attention to:
+- Scheduling correctness: opening-hour windows, day-window overflow, an
+  attraction scheduled on more than one date, and meal windows.
+- Transport rule violations: transit legs with a transfer count above zero,
+  and days that mix car mode with transit.
+- Boundaries: planning logic must not leak into presentational UI components,
+  and only the adapter layer may know the harness exists.
+- External calls: timeouts, retries, rate limits, and a defined degraded state
+  for every dependency.
+- Anything that silently swallows an error or hides a fallback from the user.
+"""
+
+[pr_code_suggestions]
+num_code_suggestions = 6
