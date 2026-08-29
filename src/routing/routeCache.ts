@@ -11,7 +11,8 @@ import type { RouteResolver } from "@/routing/refine";
  * have changed by tomorrow either.
  *
  * Failures are deliberately not cached: a network blip or a rejected key must
- * not persist as a permanent absence of a route.
+ * not persist as a permanent absence of a route. Neither is an answer about
+ * now — see `persistable`.
  */
 
 export interface CacheStorage {
@@ -47,17 +48,61 @@ function read(storage: CacheStorage): CacheFile {
 function write(storage: CacheStorage, file: CacheFile): void {
   try {
     storage.setItem(ROUTE_CACHE_KEY, JSON.stringify(file));
+    return;
   } catch {
-    // Storage can be full or blocked. Losing the cache costs money, not
-    // correctness, so it must never break a plan.
+    // Storage is full or blocked. Full is worth one more attempt: refusing
+    // every write from here on would quietly turn persistence off for good,
+    // and half a cache still saves half the calls.
+  }
+
+  const byAge = Object.entries(file).sort(
+    ([, a], [, b]) => Date.parse(b.savedAt) - Date.parse(a.savedAt),
+  );
+  try {
+    storage.setItem(
+      ROUTE_CACHE_KEY,
+      JSON.stringify(Object.fromEntries(byAge.slice(0, Math.ceil(byAge.length / 2)))),
+    );
+  } catch {
+    // Blocked outright. Losing the cache costs money, not correctness, so it
+    // must never break a plan.
   }
 }
 
 function fresh(entry: CacheEntry, now: Date): boolean {
-  const savedAt = Date.parse(entry.savedAt);
+  const savedAt = Date.parse(entry?.savedAt ?? "");
   if (Number.isNaN(savedAt)) return false;
   const ageDays = (now.getTime() - savedAt) / 86_400_000;
   return ageDays >= 0 && ageDays <= MAX_AGE_DAYS;
+}
+
+/**
+ * Entries too old to be returned are dropped whenever the file is rewritten.
+ * Left in place they would never be read again but would still take room, and
+ * the file only has so much: once the bucket is full every later write is
+ * refused, and a cache that grows for ever ends up caching nothing.
+ */
+function prune(file: CacheFile, now: Date): CacheFile {
+  const kept: CacheFile = {};
+  for (const [key, entry] of Object.entries(file)) {
+    if (fresh(entry, now)) kept[key] = entry;
+  }
+  return kept;
+}
+
+/**
+ * Whether an answer may outlive the session that asked for it.
+ *
+ * A transit request with no departure is answered for the moment it arrives,
+ * so the lines, the changes and the duration in it describe the timetable
+ * running right now. Kept for a fortnight it would describe a service to a
+ * traveller who will not be there for one — which is the defect that dating
+ * the request was added to cure, arriving by another route. Those answers are
+ * reused within the session that asked and no longer. A walk or a drive has no
+ * timetable, so it keeps.
+ */
+function persistable(request: RouteRequest): boolean {
+  return request.mode !== "transit" || Boolean(request.departureTime);
 }
 
 export function createPersistentRouteCache(
@@ -68,12 +113,21 @@ export function createPersistentRouteCache(
   // In-flight requests are shared too, so two legs asking for the same journey
   // at once make one call rather than two.
   const pending = new Map<string, Promise<ResolvedRoute>>();
+  // Answers that must not outlive this session still cost money to ask twice
+  // inside it, so they are held here instead of in storage.
+  const session = new Map<string, ResolvedRoute>();
 
   return async (request: RouteRequest) => {
     const key = cacheKey(request);
+    const durable = persistable(request);
 
-    const stored = read(storage)[key];
-    if (stored && fresh(stored, clock())) return stored.route;
+    if (durable) {
+      const stored = read(storage)[key];
+      if (stored && fresh(stored, clock())) return stored.route;
+    } else {
+      const held = session.get(key);
+      if (held) return held;
+    }
 
     const inFlight = pending.get(key);
     if (inFlight) return inFlight;
@@ -83,9 +137,13 @@ export function createPersistentRouteCache(
 
     try {
       const route = await promise;
-      const file = read(storage);
-      file[key] = { savedAt: clock().toISOString(), route };
-      write(storage, file);
+      if (durable) {
+        const file = prune(read(storage), clock());
+        file[key] = { savedAt: clock().toISOString(), route };
+        write(storage, file);
+      } else {
+        session.set(key, route);
+      }
       return route;
     } finally {
       pending.delete(key);
