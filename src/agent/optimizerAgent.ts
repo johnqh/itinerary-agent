@@ -139,6 +139,9 @@ a worse itinerary. Check them in code before you answer:
 - A leg's durationMinutes is at least the travel time the model below gives for
   those two coordinates, and its mode is the mode that model selects. Both are
   recomputed from the coordinates, so understating either is rejected.
+- A leg's distanceMeters is at least the great-circle distance between those two
+  coordinates. It is what the timeline shows the traveller, so a leg reported as
+  covering no ground is rejected however sound its duration is.
 - The gap between two consecutive stops is at least that travel time. This is
   the constraint that is easiest to get wrong: reserve the journey before you
   place the next stop.

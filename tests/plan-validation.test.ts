@@ -653,3 +653,53 @@ describe("meal sittings", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+/**
+ * The timeline renders a leg's distance verbatim, so an unchecked one is a
+ * number the traveller reads as a fact. The coordinates put a floor under it.
+ */
+describe("checking the distance a leg claims", () => {
+  function farDay(overrides: Partial<PlanDay> = {}): PlanDay {
+    return day({
+      items: [
+        { kind: "attraction", refId: "a1", startTime: "09:00", endTime: "10:00" },
+        { kind: "attraction", refId: "a3", startTime: "10:30", endTime: "11:30" },
+      ],
+      legs: [
+        {
+          fromIndex: 0,
+          toIndex: 1,
+          mode: "rideshare",
+          durationMinutes: 14,
+          distanceMeters: 3726,
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  test("rejects a multi-kilometre leg reported as no distance at all", () => {
+    const result = check([
+      farDay({
+        legs: [
+          {
+            fromIndex: 0,
+            toIndex: 1,
+            mode: "rideshare",
+            durationMinutes: 14,
+            distanceMeters: 0,
+          },
+        ],
+      }),
+      secondDay(),
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/distance/i);
+  });
+
+  test("accepts a distance at or above the straight line between the stops", () => {
+    const result = check([farDay(), secondDay()]);
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+});

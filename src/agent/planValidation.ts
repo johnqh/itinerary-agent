@@ -14,7 +14,7 @@ import {
   openDuring,
   parseClock,
 } from "@/planner/time";
-import { estimateTravel } from "@/planner/geo";
+import { estimateTravel, haversineMeters } from "@/planner/geo";
 import { MEAL_DURATIONS, violatesCuisineConstraint } from "@/planner/meals";
 import { selectMode } from "@/planner/transport";
 
@@ -284,6 +284,13 @@ export function validateAgentPlan(
         pace: context.trip.pace,
       });
 
+      // The timeline prints the leg's distance verbatim, so an unchecked one is
+      // a number the traveller reads as a fact. The straight line between the
+      // two coordinates is the floor no route can go under; a road distance
+      // above it is plausible, and a distance below it is not a longer way
+      // round but a claim about the map that nothing retrieved supports.
+      const straightLineMeters = Math.round(haversineMeters(from.location, to.location));
+
       for (const leg of matching) {
         if (leg.mode !== modelled.mode) {
           violations.push(
@@ -293,6 +300,11 @@ export function validateAgentPlan(
         if (leg.durationMinutes < modelled.durationMinutes) {
           violations.push(
             `A leg on ${day.date} understates the journey: ${leg.durationMinutes} min for a trip the travel model puts at ${modelled.durationMinutes} min.`,
+          );
+        }
+        if (leg.distanceMeters < straightLineMeters) {
+          violations.push(
+            `A leg on ${day.date} understates the distance: ${leg.distanceMeters} m between stops that are ${straightLineMeters} m apart in a straight line.`,
           );
         }
       }
