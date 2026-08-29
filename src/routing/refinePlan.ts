@@ -7,8 +7,9 @@ import type {
   RouteLeg,
   TripRequest,
 } from "@/types/workspace";
-import { createCachedResolver, resolveLeg, type RouteResolver } from "@/routing/refine";
+import { resolveLeg, type RouteResolver } from "@/routing/refine";
 import { resolveRoute } from "@/routing/googleRoutes";
+import { browserCacheStorage, createPersistentRouteCache } from "@/routing/routeCache";
 
 /**
  * Replaces a plan's estimated legs with measured ones.
@@ -22,6 +23,18 @@ import { resolveRoute } from "@/routing/googleRoutes";
  * travel is the scheduler's job, not this one's; changing arrival times here
  * would silently disagree with the schedule the traveller already read.
  */
+
+/**
+ * One cache for the life of the page, not one per plan.
+ *
+ * Built here rather than as a default argument: a default is evaluated on every
+ * call, so each replan was getting an empty cache and paying for every leg
+ * again.
+ */
+const sharedResolver: RouteResolver = createPersistentRouteCache(
+  resolveRoute,
+  browserCacheStorage(),
+);
 
 export interface RefineContext {
   trip: TripRequest;
@@ -45,7 +58,7 @@ function positionsFor(context: RefineContext): Map<string, LatLng> {
 export async function refinePlanRoutes(
   plan: Plan,
   context: RefineContext,
-  resolver: RouteResolver = createCachedResolver(resolveRoute),
+  resolver: RouteResolver = sharedResolver,
 ): Promise<RefineResult> {
   const positions = positionsFor(context);
   let routeCalls = 0;

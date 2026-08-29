@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { MODE_COLORS } from "@/lib/modes";
+import { decodePolyline } from "@/routing/polyline";
 import { categoryStyle, MEAL_STYLE } from "@/lib/categories";
 import type {
   Attraction,
@@ -206,19 +207,30 @@ export default function MapView({
         ? `${leg.transitLines.join(" → ")} · ${leg.durationMinutes} min`
         : `${leg.mode} · ${leg.durationMinutes} min${leg.estimated ? " (estimated)" : ""}`;
 
-      L.polyline(
-        [
-          [from.lat, from.lng],
-          [to.lat, to.lng],
-        ],
-        {
-          color: MODE_COLORS[leg.mode],
-          weight: selected ? 8 : 5,
-          opacity: selected ? 1 : 0.8,
-          // A dashed line means the travel time is modelled, not measured.
-          dashArray: leg.estimated ? "6 7" : undefined,
-        },
-      )
+      // The path the provider actually returned, when there is one. A straight
+      // line between two stops would draw a route through the bay; falling back
+      // to it is only honest because such a leg is also drawn dashed, which is
+      // this map's way of saying the travel was modelled rather than measured.
+      const shape = leg.polyline ? decodePolyline(leg.polyline) : [];
+      const path: [number, number][] =
+        shape.length > 1
+          ? shape
+          : [
+              [from.lat, from.lng],
+              [to.lat, to.lng],
+            ];
+
+      // Selecting one journey makes it the subject; the rest of the day stays
+      // visible but recedes, the same way an off-day pin does.
+      const anotherLegSelected = selection?.kind === "leg" && !selected;
+
+      L.polyline(path, {
+        color: MODE_COLORS[leg.mode],
+        weight: selected ? 7 : anotherLegSelected ? 3.5 : 4.5,
+        opacity: selected ? 1 : anotherLegSelected ? 0.55 : 0.85,
+        // Dashed means the geometry is a straight-line stand-in, not a route.
+        dashArray: shape.length > 1 ? undefined : "6 7",
+      })
         .bindTooltip(label, { sticky: true })
         .on("click", () => onSelect({ kind: "leg", date: day.date, fromIndex: leg.fromIndex }))
         .addTo(layer);

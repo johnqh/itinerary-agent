@@ -4,7 +4,30 @@ import { isoDaysFromNow } from "@/lib/dates";
 import { MAX_TRIP_DAYS, validateTripDates } from "@/planner/build";
 import { coveredCityLabels, datasetFor } from "@/data/datasets";
 
-const CUISINES = ["japanese", "local", "italian", "vegetarian", "cafe", "quick bite"];
+const CUISINES = [
+  "local",
+  "japanese",
+  "chinese",
+  "korean",
+  "thai",
+  "vietnamese",
+  "indian",
+  "mexican",
+  "italian",
+  "french",
+  "mediterranean",
+  "american",
+  "seafood",
+  "barbecue",
+  "vegetarian",
+  "vegan",
+  "bakery",
+  "cafe",
+  "dessert",
+  "street food",
+  "quick bite",
+  "fine dining",
+];
 const PACES: Pace[] = ["relaxed", "balanced", "packed"];
 
 interface TripFormProps {
@@ -73,7 +96,7 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
           value={destination}
           onChange={(e) => setDestination(e.target.value)}
           required
-          className="mt-1 w-full rounded-md border border-hairline bg-surface px-3 py-2 text-[13px]"
+          className="mt-1 w-full rounded-md border border-hairline bg-surface px-3 py-2.5 text-[14px]"
         />
       </label>
 
@@ -97,7 +120,7 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3">
         <label className="block">
           <span className="text-[13px] font-medium">First day</span>
           <input
@@ -105,7 +128,7 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
             required
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="mt-1 w-full rounded-md border border-hairline bg-surface px-3 py-2 text-[13px]"
+            className="mt-1 w-full rounded-md border border-hairline bg-surface px-3 py-2.5 text-[14px]"
           />
         </label>
         <label className="block">
@@ -115,7 +138,7 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
             required
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="mt-1 w-full rounded-md border border-hairline bg-surface px-3 py-2 text-[13px]"
+            className="mt-1 w-full rounded-md border border-hairline bg-surface px-3 py-2.5 text-[14px]"
           />
         </label>
       </div>

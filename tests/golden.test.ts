@@ -145,3 +145,25 @@ describe("the deterministic planner satisfies the agent trust boundary", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe("meals across the whole trip", () => {
+  test("does not send the traveller to the same restaurant twice", () => {
+    const seats = plan.days.flatMap((d) =>
+      d.items.filter((i) => i.kind === "meal").map((i) => i.refId),
+    );
+    expect(seats.length).toBeGreaterThan(1);
+    expect(new Set(seats).size).toBe(seats.length);
+  });
+
+  test("still seats a meal rather than leaving it out when choices run short", () => {
+    // With fewer restaurants than meals, repeating one beats going hungry: a
+    // seated meal at a repeat venue is a worse itinerary, an unseated one is a
+    // gap in the day.
+    const twoPlaces = restaurants.slice(0, 2);
+    const short = buildPlan({ trip, attractions, restaurants: twoPlaces, ratings });
+    const seats = short.days.flatMap((d) =>
+      d.items.filter((i) => i.kind === "meal").map((i) => i.refId),
+    );
+    expect(seats.length).toBeGreaterThan(twoPlaces.length);
+  });
+});
