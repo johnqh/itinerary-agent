@@ -15,6 +15,22 @@ function closedOnSomeDate(attraction: Attraction, dates: string[]): boolean {
   return dates.some((date) => attraction.hoursByDate[date]?.status === "closed");
 }
 
+/**
+ * Unresolved hours are a scoring penalty, not an exclusion, so a place nobody
+ * could confirm the hours of can still be scheduled. That is the right trade —
+ * refusing every unconfirmed place would empty most live itineraries — but it
+ * has to be visible on the card, not only inside the detail panel.
+ */
+function hoursUnresolvedOnEveryDate(attraction: Attraction, dates: string[]): boolean {
+  return (
+    dates.length > 0 &&
+    dates.every((date) => {
+      const status = attraction.hoursByDate[date]?.status;
+      return status === undefined || status === "unknown";
+    })
+  );
+}
+
 export default function CandidateList({
   attractions,
   ratings,
@@ -61,6 +77,11 @@ export default function CandidateList({
                 {closedOnSomeDate(attraction, tripDates) && (
                   <span className="rounded bg-car/10 px-1.5 py-0.5 text-car">
                     Closed some days
+                  </span>
+                )}
+                {hoursUnresolvedOnEveryDate(attraction, tripDates) && (
+                  <span className="rounded bg-ink/5 px-1.5 py-0.5 text-muted">
+                    Hours unconfirmed
                   </span>
                 )}
                 {excluded && (
