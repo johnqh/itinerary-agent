@@ -170,6 +170,25 @@ describe("the moment each leg is asked about", () => {
     expect(transitAt).toEqual(["2026-09-12T17:00:00Z", "2026-09-12T20:30:00Z"]);
   });
 
+  test("asks about the departure as re-timed, not the one it replaced", async () => {
+    const resolve = vi.fn(async ({ mode }: { mode: string }) =>
+      mode === "walk" ? route({ durationMinutes: 400 }) : route({ durationMinutes: 200 }),
+    );
+    await refinePlanRoutes(
+      plan(),
+      { trip, attractions, restaurants, timeZone: "America/Los_Angeles" },
+      resolve,
+    );
+
+    const transitAt = resolve.mock.calls
+      .map(([r]) => r as { mode: string; departureTime?: string })
+      .filter((r) => r.mode === "transit")
+      .map((r) => r.departureTime);
+    // A 200-minute first leg moves the meal from 12:30 to 13:20, so the
+    // traveller leaves it at 14:20 rather than the 13:30 originally written.
+    expect(transitAt).toEqual(["2026-09-12T17:00:00Z", "2026-09-12T21:20:00Z"]);
+  });
+
   test("asks about no particular moment when the zone is unknown", async () => {
     const resolve = vi.fn(async ({ mode }: { mode: string }) =>
       mode === "walk" ? route({ durationMinutes: 40 }) : route({ durationMinutes: 11 }),

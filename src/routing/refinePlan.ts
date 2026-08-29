@@ -61,19 +61,23 @@ export interface RefineResult {
  *
  * That is the moment the transit answer has to be about, and it is the end of
  * the previous stop rather than the start of the next: the gap between them is
- * the journey being asked about.
+ * the journey being asked about. The end used is the corrected one, after the
+ * legs already measured have pushed the morning about.
  *
- * Null whenever it cannot be established honestly — no zone, an unreadable
+ * Undefined whenever it cannot be established honestly — no zone, no readable
  * clock, or a departure already in the past, which the provider refuses. An
  * undated request falls back to being answered for now, which is the behaviour
  * this replaced; a wrongly dated one would put a real line name against a
  * service that is not running.
  */
-function legDeparture(day: PlanDay, fromIndex: number, timeZone: string | undefined): string | undefined {
-  const leaves = day.items[fromIndex]?.endTime;
-  if (!leaves) return undefined;
+function legDeparture(
+  date: string,
+  leavesMinutes: number | null,
+  timeZone: string | undefined,
+): string | undefined {
+  if (leavesMinutes === null) return undefined;
 
-  const instant = departureInstant(day.date, leaves, timeZone);
+  const instant = departureInstant(date, toClock(leavesMinutes), timeZone);
   if (!instant) return undefined;
   return Date.parse(instant) > Date.now() ? instant : undefined;
 }
@@ -85,69 +89,15 @@ function positionsFor(context: RefineContext): Map<string, LatLng> {
   return positions;
 }
 
-interface Retimed {
-  items: PlanItem[];
-  /** What the measured legs broke, in the traveller's words. Empty when nothing. */
-  problems: string[];
-}
-
-/**
- * Re-lays the day's clock over its measured legs.
- *
- * Each stop keeps the length it was given and is moved to the first moment the
- * journey in front of it can actually deliver the traveller. An item whose
- * clock cannot be read is left exactly as it is, and breaks the chain rather
- * than letting a guess propagate down the rest of the day.
- */
-function retimeDay(day: PlanDay, legs: RouteLeg[], context: RefineContext): Retimed {
-  const arrivalTravel = new Map<number, number>();
-  for (const leg of legs) {
-    arrivalTravel.set(leg.toIndex, Math.max(arrivalTravel.get(leg.toIndex) ?? 0, leg.durationMinutes));
-  }
-
-  const named = new Map<string, { name: string; hours: Hours | undefined }>();
+function placesFor(day: PlanDay, context: RefineContext): Map<string, { name: string; hours: Hours | undefined }> {
+  const places = new Map<string, { name: string; hours: Hours | undefined }>();
   for (const a of context.attractions) {
-    named.set(a.id, { name: a.name, hours: a.hoursByDate[day.date] });
+    places.set(a.id, { name: a.name, hours: a.hoursByDate[day.date] });
   }
   for (const r of context.restaurants) {
-    named.set(r.id, { name: r.name, hours: r.hoursByDate[day.date] });
+    places.set(r.id, { name: r.name, hours: r.hoursByDate[day.date] });
   }
-
-  const items: PlanItem[] = [];
-  const problems: string[] = [];
-  let previousEnd: number | null = null;
-
-  for (const [index, item] of day.items.entries()) {
-    const start = parseClock(item.startTime);
-    const end = parseClock(item.endTime);
-    if (start === null || end === null) {
-      items.push(item);
-      previousEnd = null;
-      continue;
-    }
-
-    const stay = Math.max(0, end - start);
-    const earliest = previousEnd === null ? start : previousEnd + (arrivalTravel.get(index) ?? 0);
-    const nextStart = Math.max(start, earliest);
-    const nextEnd = nextStart + stay;
-    previousEnd = nextEnd;
-
-    const place = named.get(item.refId);
-    const label = place?.name ?? item.refId;
-    if (nextEnd > DAY_END_MINUTES) {
-      problems.push(`${label} now runs past the end of the day`);
-    } else if (openDuring(place?.hours, nextStart, nextEnd) === "closed") {
-      problems.push(`${label} is closed by the time the measured journey arrives`);
-    }
-
-    items.push(
-      nextStart === start
-        ? item
-        : { ...item, startTime: toClock(nextStart), endTime: toClock(nextEnd) },
-    );
-  }
-
-  return { items, problems };
+  return places;
 }
 
 /**
@@ -177,13 +127,65 @@ export async function refinePlanRoutes(
 
   const days: PlanDay[] = [];
   for (const day of plan.days) {
-    const legs: RouteLeg[] = [];
+    const places = placesFor(day, context);
+    const legByFrom = new Map<number, RouteLeg>();
+    for (const leg of day.legs) legByFrom.set(leg.fromIndex, leg);
 
-    for (const leg of day.legs) {
+    const resolvedByFrom = new Map<number, RouteLeg>();
+    const items: PlanItem[] = [];
+
+    // The day is walked in order because the two corrections depend on each
+    // other: a leg's departure is the corrected end of the stop it leaves,
+    // and a stop's corrected start is the arrival the leg before it measured.
+    // Resolving every leg first and re-timing afterwards asked the provider
+    // about departures the re-timing then moved.
+    let previousEnd: number | null = null;
+    let travelIn = 0;
+
+    for (const [index, item] of day.items.entries()) {
+      const start = parseClock(item.startTime);
+      const end = parseClock(item.endTime);
+
+      let leaves: number | null = null;
+      if (start === null || end === null) {
+        // An unreadable clock is not a time to reason from. The item is left
+        // exactly as written and the chain restarts at the next one rather
+        // than propagating a guess through the rest of the day.
+        items.push(item);
+      } else {
+        const stay = Math.max(0, end - start);
+        const earliest = previousEnd === null ? start : previousEnd + travelIn;
+        const nextStart = Math.max(start, earliest);
+        const nextEnd = nextStart + stay;
+        leaves = nextEnd;
+
+        const place = places.get(item.refId);
+        const label = place?.name ?? item.refId;
+        if (nextEnd > DAY_END_MINUTES) {
+          infeasible.push(`${label} now runs past the end of the day`);
+        } else if (openDuring(place?.hours, nextStart, nextEnd) === "closed") {
+          infeasible.push(`${label} is closed by the time the measured journey arrives`);
+        }
+
+        items.push(
+          nextStart === start
+            ? item
+            : { ...item, startTime: toClock(nextStart), endTime: toClock(nextEnd) },
+        );
+      }
+      previousEnd = leaves;
+
+      const leg = legByFrom.get(index);
+      if (!leg) {
+        travelIn = 0;
+        continue;
+      }
+
       const from = positions.get(day.items[leg.fromIndex]?.refId ?? "");
       const to = positions.get(day.items[leg.toIndex]?.refId ?? "");
       if (!from || !to) {
-        legs.push(leg);
+        resolvedByFrom.set(leg.fromIndex, leg);
+        travelIn = leg.durationMinutes;
         continue;
       }
 
@@ -193,7 +195,7 @@ export async function refinePlanRoutes(
         {
           isCarDay: day.isCarDay,
           pace: context.trip.pace,
-          departureTime: legDeparture(day, leg.fromIndex, context.timeZone),
+          departureTime: legDeparture(day.date, leaves, context.timeZone),
         },
         countingResolver,
       );
@@ -204,12 +206,18 @@ export async function refinePlanRoutes(
       if (resolved.mode === "transit") transitAccepted += 1;
       else if (resolved.fallbackReason?.match(/transit|transfer/i)) transitRejected += 1;
 
-      legs.push({ ...resolved, fromIndex: leg.fromIndex, toIndex: leg.toIndex });
+      resolvedByFrom.set(leg.fromIndex, {
+        ...resolved,
+        fromIndex: leg.fromIndex,
+        toIndex: leg.toIndex,
+      });
+      travelIn = resolved.durationMinutes;
     }
 
-    const retimed = retimeDay(day, legs, context);
-    infeasible.push(...retimed.problems);
-    days.push({ ...day, legs, items: retimed.items });
+    // Rebuilt in the order the day already had them, so nothing downstream has
+    // to care that they were resolved by walking the items.
+    const legs = day.legs.map((leg) => resolvedByFrom.get(leg.fromIndex) ?? leg);
+    days.push({ ...day, legs, items });
   }
 
   const transportMinutes = days
