@@ -127,20 +127,34 @@ Without a reachable harness — or without the model and web-data connector that
 discovery names — live research is switched off, the workspace says so, and the
 trip runs on the committed seed dataset.
 
-### Reaching the routing provider
+### Reaching the Google providers
 
-Google Routes is reached the same way and for a stronger reason: the API key is
-attached by the proxy, server-side, so it never reaches the browser bundle. That
-is why `GOOGLE_MAPS_API_KEY` is deliberately **not** `VITE_`-prefixed — a
-prefixed variable is inlined into the shipped JavaScript for anyone to read.
+Google Routes and Google Places are reached the same way and for a stronger
+reason: the API key is attached by the proxy, server-side, so it never reaches
+the browser bundle. That is why `GOOGLE_MAPS_API_KEY` is deliberately **not**
+`VITE_`-prefixed — a prefixed variable is inlined into the shipped JavaScript
+for anyone to read.
 
 `bun run dev` and `bun run preview` are the two supported ways to serve this
-workspace, and both proxy `/gmaps`. A static build put behind any other server
-needs an equivalent reverse proxy: forward `/gmaps/*` to
-`https://routes.googleapis.com/*`, adding the `X-Goog-Api-Key` header there.
-There is deliberately no client-side alternative — a build with nothing serving
-`/gmaps` keeps every leg as a straight-line estimate and names that on screen
-rather than dropping to a silent guess, but its transit legs are gone.
+workspace, and both proxy `/gmaps` and `/places`. A static build put behind any
+other server needs equivalent reverse proxies, each adding the
+`X-Goog-Api-Key` header itself:
+
+| Path       | Forwards to                      | Used for                              |
+| ---------- | -------------------------------- | ------------------------------------- |
+| `/gmaps/*` | `https://routes.googleapis.com/*` | travel times, transit lines, transfers |
+| `/places/*` | `https://places.googleapis.com/*` | attraction photographs, nearby meals  |
+
+There is deliberately no client-side alternative for either — the key must not
+reach the page — and each has a defined degraded state rather than a silent
+one:
+
+- Nothing serving `/gmaps` keeps every leg as a straight-line estimate, names
+  that on screen, and reports transit as unavailable rather than guessed at.
+- Nothing serving `/places` leaves researched attractions with whatever
+  photographs research found and returns no nearby restaurants, so a meal the
+  planner cannot then seat is reported unseated in the timeline rather than
+  invented.
 
 Every change lands through a reviewed pull request. Direct pushes to `main` are
 not part of this project's workflow.

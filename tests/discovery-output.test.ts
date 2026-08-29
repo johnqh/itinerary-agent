@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { readTurnOutput } from "@/agent/discovery";
+import {
+  DISCOVERY_INSTRUCTIONS,
+  discoveryPrompt,
+  discoverySchema,
+} from "@/agent/discoveryAgent";
+import type { TripRequest } from "@/types/workspace";
 
 /**
  * The turn's structured answer lives in the terminal state. These cases pin the
@@ -46,5 +52,40 @@ describe("readTurnOutput", () => {
 
   test("throws when there is no state at all", () => {
     expect(() => readTurnOutput(undefined)).toThrow(/without a result/i);
+  });
+});
+
+/**
+ * The brief has to ask for one thing.
+ *
+ * Restaurants are found later, near the stops a day is actually built around.
+ * A brief that both forbids restaurant research and demands six of them spends
+ * the tool calls this change exists to reclaim, and leaves the model to settle
+ * the contradiction whichever way it likes.
+ */
+describe("the research brief", () => {
+  const trip: TripRequest = {
+    destination: "Lisbon",
+    startDate: "2026-09-12",
+    endDate: "2026-09-13",
+    hasRentalCar: false,
+    pace: "balanced",
+    meals: { cuisines: [], strictness: "flexible" },
+  };
+
+  test("does not ask for the restaurants it tells the model to skip", () => {
+    expect(DISCOVERY_INSTRUCTIONS).toMatch(/Do not spend effort finding restaurants/);
+    expect(DISCOVERY_INSTRUCTIONS).not.toMatch(/[0-9]+ restaurants/);
+  });
+
+  test("the per-trip prompt asks for attractions, not restaurants", () => {
+    expect(discoveryPrompt(trip, ["2026-09-12", "2026-09-13"])).not.toMatch(/restaurant/i);
+  });
+
+  test("the schema says an empty restaurant list is the expected answer", () => {
+    const schema = discoverySchema(["2026-09-12"]) as {
+      schema: { properties: { restaurants: { description?: string } } };
+    };
+    expect(schema.schema.properties.restaurants.description).toMatch(/empty/i);
   });
 });

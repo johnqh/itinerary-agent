@@ -141,15 +141,25 @@ function isConfidence(value: unknown): boolean {
  * planner's time arithmetic trusts these strings, and "24:99" converts to a
  * finite, plausible-looking number that quietly makes a place unschedulable.
  */
-function isHours(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  if (value.status === "closed" || value.status === "unknown") return true;
+function isClockPair(value: unknown): boolean {
   return (
-    value.status === "open" &&
+    isRecord(value) &&
     typeof value.open === "string" &&
     typeof value.close === "string" &&
     parseClock(value.open) !== null &&
     parseClock(value.close) !== null
+  );
+}
+
+function isHours(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (value.status === "closed" || value.status === "unknown") return true;
+  if (value.status !== "open" || !isClockPair(value)) return false;
+  // A second sitting is optional, but a stored one has to be readable for the
+  // same reason the first does: the planner does arithmetic on these strings.
+  return (
+    value.alsoOpen === undefined ||
+    (Array.isArray(value.alsoOpen) && value.alsoOpen.every(isClockPair))
   );
 }
 

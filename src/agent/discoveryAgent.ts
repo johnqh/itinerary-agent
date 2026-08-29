@@ -108,6 +108,9 @@ export function discoverySchema(dates: string[]) {
         },
         restaurants: {
           type: "array",
+          description:
+            "Leave this empty. Somewhere to eat is searched for after the days " +
+            "are laid out, near the stops the traveller will actually be at.",
           items: {
             type: "object",
             additionalProperties: false,
@@ -159,14 +162,13 @@ over an archive or historical image. If you genuinely cannot find one for a
 place, return an empty list rather than a link that is not an image.
 
 Coverage: aim for at least 12 attractions spanning different categories and
-neighbourhoods, plus at least 6 restaurants spread across the same areas so a
-day anywhere in the city has somewhere to eat.
+neighbourhoods.
 
-Do not spend effort finding restaurants. Somewhere to eat is chosen later,
-once the days are laid out, by searching near the stops the traveller will
-actually be at — so a restaurant found now is a guess about a route that does
-not exist yet. If a place is genuinely famous as a destination in its own
-right, return it as an attraction instead.
+Do not spend effort finding restaurants, and return an empty list for them.
+Somewhere to eat is chosen later, once the days are laid out, by searching near
+the stops the traveller will actually be at — so a restaurant found now is a
+guess about a route that does not exist yet. If a place is genuinely famous as
+a destination in its own right, return it as an attraction instead.
 
 Budget: aim to finish in roughly 40 tool calls. Spending a hundred lookups to
 add a fourteenth attraction is a bad trade; breadth of coverage and confirmed
@@ -175,18 +177,22 @@ hours matter more than exhaustiveness.
 Answer with the JSON object only.
 `.trim();
 
+/**
+ * The per-trip brief.
+ *
+ * It asks for attractions and nothing else. The traveller's cuisines are not
+ * mentioned either: they steer which restaurant is chosen from what the nearby
+ * search returns, and putting them here only invites the research turn to go
+ * looking for food it has been told to leave alone.
+ */
 export function discoveryPrompt(trip: TripRequest, dates: string[]): string {
-  const cuisines = trip.meals.cuisines.length > 0
-    ? trip.meals.cuisines.join(", ")
-    : "no particular preference";
   return [
     `Destination: ${trip.destination}`,
     `Trip dates: ${dates.join(", ")}`,
     `Pace: ${trip.pace}`,
     `Getting around: ${trip.hasRentalCar ? "has a rental car" : "on foot and public transport"}`,
-    `Food preferences: ${cuisines}`,
     "",
-    "Find the attractions and restaurants worth considering for this trip.",
+    "Find the attractions worth considering for this trip.",
     "Resolve opening hours for each of the listed trip dates specifically:",
     "many places close one weekday, and that changes the plan.",
   ].join("\n");

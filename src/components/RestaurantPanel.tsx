@@ -11,7 +11,11 @@ function hoursLabel(restaurant: Restaurant, date: string): string {
   const hours = restaurant.hoursByDate[date];
   if (!hours || hours.status === "unknown") return "Hours unknown";
   if (hours.status === "closed") return "Closed";
-  return `${hours.open}–${hours.close}`;
+  // A kitchen that shuts between lunch and dinner has two sittings, and
+  // showing only the first tells the traveller it is shut when it is not.
+  return [{ open: hours.open, close: hours.close }, ...(hours.alsoOpen ?? [])]
+    .map((interval) => `${interval.open}–${interval.close}`)
+    .join(", ");
 }
 
 /**

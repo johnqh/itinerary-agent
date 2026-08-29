@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseNearbyResponse, nearbyRequestBody } from "@/routing/nearbyRestaurants";
+import { openDuring, toMinutes } from "@/planner/time";
 
 /**
  * Restaurants found where the day actually is.
@@ -92,5 +93,52 @@ describe("parsing", () => {
       open: "11:30",
       close: "21:30",
     });
+  });
+});
+
+/**
+ * Google publishes `periods` as the whole week's opening. A weekday it omits
+ * is a day the place is shut, which is different from a place that published
+ * nothing at all: the planner keeps unknown hours eligible and seats meals
+ * against them, so calling a known closure "unknown" books a shut restaurant.
+ */
+describe("a published week", () => {
+  test("a weekday the schedule omits is closed, not unknown", () => {
+    // 2026-09-13 is a Sunday; the fixture publishes Saturday only.
+    const [restaurant] = parseNearbyResponse({ places: [place()] }, ["2026-09-13"]);
+    expect(restaurant!.hoursByDate["2026-09-13"]).toEqual({ status: "closed" });
+  });
+
+  test("a place that never closes is open, not unknown", () => {
+    // Places says a 24-hour business by publishing one period that opens at
+    // the start of the week and never closes.
+    const allDay = place({
+      regularOpeningHours: { periods: [{ open: { day: 0, hour: 0, minute: 0 } }] },
+    });
+    const [restaurant] = parseNearbyResponse({ places: [allDay] }, ["2026-09-12"]);
+    const hours = restaurant!.hoursByDate["2026-09-12"];
+
+    expect(hours!.status).toBe("open");
+    expect(openDuring(hours, toMinutes("03:00"), toMinutes("04:00"))).toBe("open");
+    expect(openDuring(hours, toMinutes("19:00"), toMinutes("20:30"))).toBe("open");
+  });
+
+  test("keeps the whole day's service, not only the first sitting", () => {
+    const split = place({
+      regularOpeningHours: {
+        periods: [
+          { open: { day: 6, hour: 11, minute: 30 }, close: { day: 6, hour: 14, minute: 0 } },
+          { open: { day: 6, hour: 18, minute: 0 }, close: { day: 6, hour: 22, minute: 0 } },
+        ],
+      },
+    });
+    const [restaurant] = parseNearbyResponse({ places: [split] }, ["2026-09-12"]);
+    const hours = restaurant!.hoursByDate["2026-09-12"];
+
+    expect(openDuring(hours, toMinutes("12:00"), toMinutes("13:00"))).toBe("open");
+    // Dinner service is published too; losing it seats dinner somewhere worse.
+    expect(openDuring(hours, toMinutes("19:00"), toMinutes("20:30"))).toBe("open");
+    // The afternoon closure is real and must not be papered over.
+    expect(openDuring(hours, toMinutes("15:00"), toMinutes("16:00"))).toBe("closed");
   });
 });

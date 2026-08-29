@@ -143,16 +143,19 @@ interface DayResult {
   unplacedMeals: UnplacedMeal[];
 }
 
-export function buildPlan(input: BuildPlanInput): Plan {
-  const { trip, attractions, restaurants, ratings } = input;
-
-  // Fail loudly at the boundary. A zero-day "ready" plan reads as a successful
-  // answer to a question the traveller never got to ask.
-  const invalid = validateTripDates(trip.startDate, trip.endDate);
-  if (invalid) throw new Error(invalid);
-
-  const dates = tripDates(trip);
-
+/**
+ * Splits the candidates the planner will actually work with from the ones it
+ * has already ruled out.
+ *
+ * Exported because it is not only the planner's business: anything that wants
+ * to know where the days will be — the nearby meal search, for one — has to
+ * cluster the same set, or it aims at a geography the itinerary never visits.
+ */
+export function partitionCandidates(
+  attractions: Attraction[],
+  ratings: Record<string, Rating>,
+  dates: string[],
+): { candidates: Attraction[]; excluded: ExclusionReason[] } {
   const excluded: ExclusionReason[] = [];
   const candidates: Attraction[] = [];
   for (const attraction of attractions) {
@@ -163,6 +166,20 @@ export function buildPlan(input: BuildPlanInput): Plan {
       candidates.push(attraction);
     }
   }
+  return { candidates, excluded };
+}
+
+export function buildPlan(input: BuildPlanInput): Plan {
+  const { trip, attractions, restaurants, ratings } = input;
+
+  // Fail loudly at the boundary. A zero-day "ready" plan reads as a successful
+  // answer to a question the traveller never got to ask.
+  const invalid = validateTripDates(trip.startDate, trip.endDate);
+  if (invalid) throw new Error(invalid);
+
+  const dates = tripDates(trip);
+
+  const { candidates, excluded } = partitionCandidates(attractions, ratings, dates);
 
   const clusters = clusterByGeography(candidates, dates.length);
   // Order clusters west-to-east so day assignment is stable across replans.
