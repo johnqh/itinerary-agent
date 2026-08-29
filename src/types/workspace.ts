@@ -123,10 +123,25 @@ export interface ExclusionReason {
   reason: string;
 }
 
+/**
+ * A meal the planner could not seat.
+ *
+ * Lunch and dinner are planning constraints, so a day that lacks one is a
+ * degraded result that has to be named, not a day with fewer items.
+ */
+export interface UnplacedMeal {
+  /** YYYY-MM-DD */
+  date: string;
+  meal: MealKind;
+  reason: string;
+}
+
 export interface PlannerDiagnostics {
   considered: number;
   included: number;
   excluded: ExclusionReason[];
+  /** Meals the data could not support. Empty when every day got both. */
+  unplacedMeals: UnplacedMeal[];
   routeCalls: number;
   cacheHits: number;
   transitAccepted: number;
@@ -159,6 +174,10 @@ export interface DegradedState {
   discovery: string | null;
   routing: string | null;
   optimizer: string | null;
+  /** Meal constraints the planner could not satisfy or does not enforce. */
+  meals: string | null;
+  /** Base map tiles failing to load. */
+  map: string | null;
 }
 
 export interface Workspace {

@@ -93,6 +93,32 @@ describe("golden itinerary from seed data", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  test("leaves enough time between stops to actually travel between them", () => {
+    let checked = 0;
+    for (const day of plan.days) {
+      for (const leg of day.legs) {
+        const from = day.items[leg.fromIndex]!;
+        const to = day.items[leg.toIndex]!;
+        const gap = toMinutes(to.startTime) - toMinutes(from.endTime);
+        expect(
+          gap,
+          `${from.refId} \u2192 ${to.refId} on ${day.date}: ${gap} min available, ${leg.durationMinutes} min needed`,
+        ).toBeGreaterThanOrEqual(leg.durationMinutes);
+        checked += 1;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  test("seats lunch and dinner on every day of the seed trip", () => {
+    expect(plan.diagnostics.unplacedMeals).toEqual([]);
+    for (const day of plan.days) {
+      const meals = day.items.filter((i) => i.kind === "meal");
+      expect(meals.filter((m) => m.meal === "lunch")).toHaveLength(1);
+      expect(meals.filter((m) => m.meal === "dinner")).toHaveLength(1);
+    }
+  });
+
   test("emits no transit leg with a transfer", () => {
     for (const leg of plan.days.flatMap((d) => d.legs)) {
       if (leg.mode === "transit") expect(leg.transferCount).toBe(0);

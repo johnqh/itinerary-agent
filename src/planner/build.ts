@@ -11,6 +11,7 @@ import type {
   Restaurant,
   RouteLeg,
   TripRequest,
+  UnplacedMeal,
 } from "@/types/workspace";
 import { centroid, clusterByGeography, estimateTravel } from "@/planner/geo";
 import { excludeReason, scoreAttraction } from "@/planner/scoring";
@@ -114,7 +115,6 @@ export function tripDates(trip: TripRequest): string[] {
   return dates;
 }
 
-
 interface Segment {
   start: number;
   end: number;
@@ -124,6 +124,19 @@ interface FilledSegment {
   items: PlanItem[];
   endPosition: LatLng | null;
   endTime: number;
+}
+
+interface MealPlacement {
+  spot: Restaurant | null;
+  /** Set when the choice satisfied the preference only partially. */
+  note?: string;
+  /** Set when no restaurant could be seated at all. */
+  reason?: string;
+}
+
+interface DayResult {
+  day: PlanDay;
+  unplacedMeals: UnplacedMeal[];
 }
 
 export function buildPlan(input: BuildPlanInput): Plan {
@@ -153,17 +166,34 @@ export function buildPlan(input: BuildPlanInput): Plan {
     (a, b) => centroid(a.map((x) => x.location)).lng - centroid(b.map((x) => x.location)).lng,
   );
 
-  const scheduled = new Set<string>();
-  const days: PlanDay[] = [];
-
-  dates.forEach((date, index) => {
-    const pool = (orderedClusters[index] ?? []).filter((a) => !scheduled.has(a.id));
-    const day = buildDay({ date, trip, pool, restaurants, ratings });
-    for (const item of day.items) {
-      if (item.kind === "attraction") scheduled.add(item.refId);
-    }
-    days.push(day);
+  // Pass one keeps each cluster on its own date, which is what makes a day
+  // geographically coherent. Pass two exists because a cluster's date is not a
+  // verdict: an attraction shut on that date, or squeezed out by it, is still
+  // open and reachable on another one. Anything left over after pass one is
+  // offered to every day as spillover, behind that day's own cluster.
+  const firstPass = assembleDays({
+    dates,
+    clustersByDate: orderedClusters,
+    spillover: [],
+    trip,
+    restaurants,
+    ratings,
   });
+
+  const stranded = candidates.filter((a) => !firstPass.scheduled.has(a.id));
+  const assembled =
+    stranded.length === 0
+      ? firstPass
+      : assembleDays({
+          dates,
+          clustersByDate: orderedClusters,
+          spillover: stranded,
+          trip,
+          restaurants,
+          ratings,
+        });
+
+  const { days, scheduled, unplacedMeals } = assembled;
 
   for (const attraction of candidates) {
     if (!scheduled.has(attraction.id)) {
@@ -195,6 +225,7 @@ export function buildPlan(input: BuildPlanInput): Plan {
       considered: attractions.length,
       included: includedCount,
       excluded,
+      unplacedMeals,
       routeCalls: 0,
       cacheHits: 0,
       transitAccepted: 0,
@@ -206,16 +237,66 @@ export function buildPlan(input: BuildPlanInput): Plan {
   };
 }
 
-interface BuildDayInput {
-  date: string;
+interface AssembleInput {
+  dates: string[];
+  clustersByDate: Attraction[][];
+  /** Candidates no day claimed yet. Every day may take them after its own. */
+  spillover: Attraction[];
   trip: TripRequest;
-  pool: Attraction[];
   restaurants: Restaurant[];
   ratings: Record<string, Rating>;
 }
 
-function buildDay(input: BuildDayInput): PlanDay {
-  const { date, trip, pool, restaurants, ratings } = input;
+function assembleDays(input: AssembleInput): {
+  days: PlanDay[];
+  scheduled: Set<string>;
+  unplacedMeals: UnplacedMeal[];
+} {
+  const scheduled = new Set<string>();
+  const days: PlanDay[] = [];
+  const unplacedMeals: UnplacedMeal[] = [];
+
+  input.dates.forEach((date, index) => {
+    const pool = (input.clustersByDate[index] ?? []).filter((a) => !scheduled.has(a.id));
+    const poolIds = new Set(pool.map((a) => a.id));
+    const spillover = input.spillover.filter(
+      (a) => !scheduled.has(a.id) && !poolIds.has(a.id),
+    );
+
+    const result = buildDay({
+      date,
+      trip: input.trip,
+      pool,
+      spillover,
+      restaurants: input.restaurants,
+      ratings: input.ratings,
+    });
+
+    for (const item of result.day.items) {
+      if (item.kind === "attraction") scheduled.add(item.refId);
+    }
+    unplacedMeals.push(...result.unplacedMeals);
+    days.push(result.day);
+  });
+
+  return { days, scheduled, unplacedMeals };
+}
+
+interface BuildDayInput {
+  date: string;
+  trip: TripRequest;
+  /** This day's own cluster. Always filled before spillover. */
+  pool: Attraction[];
+  spillover: Attraction[];
+  restaurants: Restaurant[];
+  ratings: Record<string, Rating>;
+}
+
+/** How many times a segment is refilled while the meal that follows it settles. */
+const MEAL_SETTLE_PASSES = 3;
+
+function buildDay(input: BuildDayInput): DayResult {
+  const { date, trip, pool, spillover, restaurants, ratings } = input;
   const isCarDay = trip.hasRentalCar;
   const budget = MAX_ATTRACTIONS_PER_DAY[trip.pace];
 
@@ -224,139 +305,211 @@ function buildDay(input: BuildDayInput): PlanDay {
   const lunchEnd = lunchStart + MEAL_DURATIONS.lunch;
   const dinnerEnd = dinnerStart + MEAL_DURATIONS.dinner;
 
-  const segments: Segment[] = [
-    { start: DAY_START_MINUTES, end: lunchStart },
-    { start: lunchEnd, end: dinnerStart },
-    { start: dinnerEnd, end: DAY_END_MINUTES },
-  ];
+  const clusterCenter = centroid([...pool, ...spillover].map((a) => a.location));
+  const taken = new Set<string>();
+  const unplacedMeals: UnplacedMeal[] = [];
 
-  const remaining = [...pool];
-  const used: string[] = [];
-  const filled: FilledSegment[] = [];
-  let position: LatLng | null = null;
-
-  for (const segment of segments) {
-    const result = fillSegment({
+  const fill = (
+    segment: Segment,
+    startPosition: LatLng | null,
+    exitTo: LatLng | null,
+  ): FilledSegment =>
+    fillSegment({
       segment,
       date,
-      pool: remaining,
+      primary: pool,
+      spillover,
+      taken,
       ratings,
       isCarDay,
       pace: trip.pace,
-      startPosition: position,
-      remainingBudget: budget - used.length,
+      startPosition,
+      exitTo,
+      remainingBudget: budget - taken.size,
     });
-    for (const item of result.items) used.push(item.refId);
-    for (const id of result.items.map((i) => i.refId)) {
-      const index = remaining.findIndex((a) => a.id === id);
-      if (index >= 0) remaining.splice(index, 1);
-    }
-    position = result.endPosition ?? position;
-    filled.push(result);
-  }
 
-  const clusterCenter = centroid(pool.map((a) => a.location));
-  const lunchSpot = pickRestaurant(
-    restaurants,
-    filled[0]?.endPosition ?? clusterCenter,
-    date,
+  /**
+   * Fills a segment and chooses the meal that closes it together.
+   *
+   * The two decisions are circular: where the morning ends decides which
+   * restaurant is nearest, and which restaurant is chosen decides how much
+   * travel the morning has to reserve. Settling them by alternating a bounded
+   * number of times keeps the builder deterministic, and the final fill always
+   * reserves travel to the restaurant actually chosen, so the result is
+   * feasible whether or not the loop converged.
+   */
+  const fillThenMeal = (
+    segment: Segment,
+    startPosition: LatLng | null,
+    meal: MealKind,
+    window: Segment,
+    excludeIds: string[],
+  ): { filled: FilledSegment; placement: MealPlacement } => {
+    let filled = fill(segment, startPosition, null);
+    let placement: MealPlacement = { spot: null };
+
+    for (let pass = 0; pass < MEAL_SETTLE_PASSES; pass++) {
+      const near = filled.endPosition ?? startPosition ?? clusterCenter;
+      const next = pickRestaurant({
+        restaurants,
+        near,
+        date,
+        meal,
+        window,
+        meals: trip.meals,
+        excludeIds,
+      });
+      const settled = next.spot?.id === placement.spot?.id;
+      placement = next;
+      filled = fill(segment, startPosition, next.spot?.location ?? null);
+      if (settled) break;
+    }
+
+    return { filled, placement };
+  };
+
+  const morning = fillThenMeal(
+    { start: DAY_START_MINUTES, end: lunchStart },
+    null,
+    "lunch",
     { start: lunchStart, end: lunchEnd },
-    trip.meals.cuisines,
     [],
   );
-  const dinnerSpot = pickRestaurant(
-    restaurants,
-    filled[1]?.endPosition ?? filled[0]?.endPosition ?? clusterCenter,
-    date,
-    { start: dinnerStart, end: dinnerEnd },
-    trip.meals.cuisines,
-    lunchSpot ? [lunchSpot.id] : [],
-  );
+  commit(taken, morning.filled);
 
-  const items: PlanItem[] = [...(filled[0]?.items ?? [])];
-  if (lunchSpot) {
-    items.push({
-      kind: "meal",
-      refId: lunchSpot.id,
-      meal: "lunch",
-      startTime: toClock(lunchStart),
-      endTime: toClock(lunchEnd),
-    });
-  }
-  items.push(...(filled[1]?.items ?? []));
-  if (dinnerSpot) {
-    items.push({
-      kind: "meal",
-      refId: dinnerSpot.id,
-      meal: "dinner",
-      startTime: toClock(dinnerStart),
-      endTime: toClock(dinnerEnd),
-    });
-  }
-  items.push(...(filled[2]?.items ?? []));
+  const afternoon = fillThenMeal(
+    { start: lunchEnd, end: dinnerStart },
+    morning.placement.spot?.location ?? morning.filled.endPosition,
+    "dinner",
+    { start: dinnerStart, end: dinnerEnd },
+    morning.placement.spot ? [morning.placement.spot.id] : [],
+  );
+  commit(taken, afternoon.filled);
+
+  const evening = fill(
+    { start: dinnerEnd, end: DAY_END_MINUTES },
+    afternoon.placement.spot?.location ?? afternoon.filled.endPosition,
+    null,
+  );
+  commit(taken, evening);
+
+  const items: PlanItem[] = [...morning.filled.items];
+  items.push(
+    ...mealItems(date, "lunch", lunchStart, lunchEnd, morning.placement, unplacedMeals),
+  );
+  items.push(...afternoon.filled.items);
+  items.push(
+    ...mealItems(date, "dinner", dinnerStart, dinnerEnd, afternoon.placement, unplacedMeals),
+  );
+  items.push(...evening.items);
 
   const positions = new Map<string, LatLng>();
-  for (const attraction of pool) positions.set(attraction.id, attraction.location);
-  for (const spot of [lunchSpot, dinnerSpot]) {
-    if (spot) positions.set(spot.id, spot.location);
+  for (const attraction of [...pool, ...spillover]) {
+    positions.set(attraction.id, attraction.location);
+  }
+  for (const placement of [morning.placement, afternoon.placement]) {
+    if (placement.spot) positions.set(placement.spot.id, placement.spot.location);
   }
 
   const legs = buildLegs(items, positions, isCarDay, trip.pace);
 
   return {
-    date,
-    isCarDay,
-    items,
-    legs,
-    summary: summarize(items, isCarDay),
+    day: { date, isCarDay, items, legs, summary: summarize(items, isCarDay) },
+    unplacedMeals,
   };
+}
+
+function commit(taken: Set<string>, filled: FilledSegment): void {
+  for (const item of filled.items) taken.add(item.refId);
+}
+
+function mealItems(
+  date: string,
+  meal: MealKind,
+  start: number,
+  end: number,
+  placement: MealPlacement,
+  unplaced: UnplacedMeal[],
+): PlanItem[] {
+  if (!placement.spot) {
+    unplaced.push({
+      date,
+      meal,
+      reason: placement.reason ?? `No restaurant could be seated for ${meal}.`,
+    });
+    return [];
+  }
+  return [
+    {
+      kind: "meal",
+      refId: placement.spot.id,
+      meal,
+      startTime: toClock(start),
+      endTime: toClock(end),
+      notes: placement.note,
+    },
+  ];
 }
 
 interface FillSegmentInput {
   segment: Segment;
   date: string;
-  pool: Attraction[];
+  primary: Attraction[];
+  spillover: Attraction[];
+  taken: Set<string>;
   ratings: Record<string, Rating>;
   isCarDay: boolean;
   pace: Pace;
   startPosition: LatLng | null;
+  /** Where the segment must be able to travel to before `segment.end`. */
+  exitTo: LatLng | null;
   remainingBudget: number;
 }
 
 function fillSegment(input: FillSegmentInput): FilledSegment {
-  const { segment, date, pool, ratings, isCarDay, pace, remainingBudget } = input;
+  const { segment, date, primary, spillover, ratings, isCarDay, pace } = input;
   const items: PlanItem[] = [];
-  const taken = new Set<string>();
+  const taken = new Set(input.taken);
   const categoryCounts = new Map<string, number>();
   let clock = segment.start;
   let position = input.startPosition;
 
-  while (items.length < remainingBudget) {
-    let best: { attraction: Attraction; start: number; end: number; score: number } | null = null;
+  const travelTo = (from: LatLng, to: LatLng): number =>
+    selectMode(estimateTravel(from, to), { isCarDay, pace }).durationMinutes;
 
-    for (const attraction of pool) {
-      if (taken.has(attraction.id)) continue;
+  while (items.length < input.remainingBudget) {
+    // Tiers, not one pool: this day's cluster is always exhausted before an
+    // attraction another day could not place is allowed to take its time.
+    let best: { attraction: Attraction; start: number; end: number; score: number } | null =
+      null;
 
-      const travel = position
-        ? selectMode(estimateTravel(position, attraction.location), { isCarDay, pace })
-            .durationMinutes
-        : 0;
-      const arrival = clock + travel;
-      const hours = attraction.hoursByDate[date];
-      const opensAt = hours?.status === "open" ? toMinutes(hours.open) : arrival;
-      const start = Math.max(arrival, opensAt);
-      const end = start + attraction.estimatedVisitMinutes;
+    for (const tier of [primary, spillover]) {
+      for (const attraction of tier) {
+        if (taken.has(attraction.id)) continue;
 
-      if (end > segment.end || end > DAY_END_MINUTES) continue;
-      if (openDuring(hours, start, end) === "closed") continue;
+        const travel = position ? travelTo(position, attraction.location) : 0;
+        const arrival = clock + travel;
+        const hours = attraction.hoursByDate[date];
+        const opensAt = hours?.status === "open" ? toMinutes(hours.open) : arrival;
+        const start = Math.max(arrival, opensAt);
+        const end = start + attraction.estimatedVisitMinutes;
 
-      const score = scoreAttraction(attraction, ratings[attraction.id], {
-        date,
-        travelMinutes: travel,
-        sameCategoryCount: categoryCounts.get(attraction.category) ?? 0,
-      });
+        // Reserve the leg out of this stop as well as the leg into it. Without
+        // it the schedule reads fine and cannot be walked: the traveller is
+        // still at the last museum when the restaurant expects them.
+        const exit = input.exitTo ? travelTo(attraction.location, input.exitTo) : 0;
+        if (end + exit > segment.end || end > DAY_END_MINUTES) continue;
+        if (openDuring(hours, start, end) === "closed") continue;
 
-      if (!best || score > best.score) best = { attraction, start, end, score };
+        const score = scoreAttraction(attraction, ratings[attraction.id], {
+          date,
+          travelMinutes: travel,
+          sameCategoryCount: categoryCounts.get(attraction.category) ?? 0,
+        });
+
+        if (!best || score > best.score) best = { attraction, start, end, score };
+      }
+      if (best) break;
     }
 
     if (!best) break;
@@ -379,14 +532,42 @@ function fillSegment(input: FillSegmentInput): FilledSegment {
   return { items, endPosition: position, endTime: clock };
 }
 
-function pickRestaurant(
-  restaurants: Restaurant[],
-  near: LatLng,
-  date: string,
-  window: { start: number; end: number },
-  cuisines: string[],
-  excludeIds: string[],
-): Restaurant | null {
+interface PickRestaurantInput {
+  restaurants: Restaurant[];
+  near: LatLng;
+  date: string;
+  meal: MealKind;
+  window: Segment;
+  meals: TripRequest["meals"];
+  excludeIds: string[];
+}
+
+function matchesCuisine(restaurant: Restaurant, cuisines: string[]): boolean {
+  return restaurant.cuisine.some((c) =>
+    cuisines.some((want) => c.toLowerCase() === want.toLowerCase()),
+  );
+}
+
+function nearest(pool: Restaurant[], near: LatLng): Restaurant {
+  return pool.reduce((closest, candidate) => {
+    const a = estimateTravel(near, candidate.location).driveMeters;
+    const b = estimateTravel(near, closest.location).driveMeters;
+    return a < b ? candidate : closest;
+  }, pool[0]!);
+}
+
+/**
+ * Chooses where a meal is eaten, or says why it cannot be.
+ *
+ * The three strictness settings are three different questions, so they get
+ * three different answers: `flexible` asks for the nearest open table and does
+ * not detour for cuisine, `prefer` detours when a match is open and says so
+ * when it settles, and `strong` treats the cuisine as a constraint and would
+ * rather report a missing meal than serve the wrong one.
+ */
+function pickRestaurant(input: PickRestaurantInput): MealPlacement {
+  const { restaurants, near, date, meal, window, meals, excludeIds } = input;
+
   // Being open on the date is not enough: the restaurant must be open for the
   // meal itself, or the itinerary seats lunch at a place that opens for dinner.
   const open = restaurants.filter(
@@ -394,20 +575,39 @@ function pickRestaurant(
       !excludeIds.includes(r.id) &&
       openDuring(r.hoursByDate[date], window.start, window.end) !== "closed",
   );
-  if (open.length === 0) return null;
+  if (open.length === 0) {
+    return {
+      spot: null,
+      reason: `No restaurant is known to be open for ${meal} on ${date}.`,
+    };
+  }
 
-  const preferred = open.filter((r) =>
-    cuisines.length === 0
-      ? true
-      : r.cuisine.some((c) => cuisines.some((want) => c.toLowerCase() === want.toLowerCase())),
-  );
-  const pool = preferred.length > 0 ? preferred : open;
+  const wanted = meals.cuisines;
+  if (wanted.length === 0) return { spot: nearest(open, near) };
 
-  return pool.reduce((closest, candidate) => {
-    const a = estimateTravel(near, candidate.location).driveMeters;
-    const b = estimateTravel(near, closest.location).driveMeters;
-    return a < b ? candidate : closest;
-  }, pool[0]!);
+  const matching = open.filter((r) => matchesCuisine(r, wanted));
+  const wantedLabel = wanted.join(" or ");
+
+  if (meals.strictness === "strong") {
+    if (matching.length === 0) {
+      return {
+        spot: null,
+        reason: `No ${wantedLabel} restaurant is open for ${meal} on ${date}, and the cuisine preference is set to strong.`,
+      };
+    }
+    return { spot: nearest(matching, near) };
+  }
+
+  if (meals.strictness === "prefer") {
+    if (matching.length > 0) return { spot: nearest(matching, near) };
+    return {
+      spot: nearest(open, near),
+      note: `No ${wantedLabel} option was open for ${meal} nearby; this is the closest alternative.`,
+    };
+  }
+
+  // flexible: cuisine is a nice-to-have and never worth a detour.
+  return { spot: nearest(open, near) };
 }
 
 function buildLegs(
@@ -442,5 +642,12 @@ function buildLegs(
 function summarize(items: PlanItem[], isCarDay: boolean): string {
   const stops = items.filter((i) => i.kind === "attraction").length;
   const mode = isCarDay ? "by car" : "on foot and by transit";
-  return `${stops} stop${stops === 1 ? "" : "s"} ${mode}, with lunch and dinner.`;
+  const meals = items.filter((i) => i.kind === "meal").map((i) => i.meal);
+  const mealText =
+    meals.length === 2
+      ? ", with lunch and dinner"
+      : meals.length === 1
+        ? `, with ${meals[0]}`
+        : ", with no meal stop the available restaurant data could support";
+  return `${stops} stop${stops === 1 ? "" : "s"} ${mode}${mealText}.`;
 }

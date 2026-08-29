@@ -25,7 +25,7 @@ const EMPTY: Workspace = {
   ratings: {},
   plan: null,
   progress: null,
-  degraded: { discovery: null, routing: null, optimizer: null },
+  degraded: { discovery: null, routing: null, optimizer: null, meals: null, map: null },
 };
 
 const SEED_NOTICE =
