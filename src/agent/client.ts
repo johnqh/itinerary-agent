@@ -25,15 +25,12 @@ export function createClient(): TrueForge {
 }
 
 /**
- * The two harness resources a live discovery turn names by hand.
+ * The harness resources the agent turns name by hand.
  *
- * They live here rather than in the discovery session so the preflight and the
- * turn cannot drift apart: checking that "a model exists" told the traveller
- * live research was available, opened the checkbox, and then spent minutes of
- * their time on a turn that could only fail.
- */
-/**
- * The models the agents run on.
+ * They live here rather than in each session so the preflight and the turns
+ * cannot drift apart: checking that "a model exists" told the traveller live
+ * research was available, opened the checkbox, and then spent minutes of their
+ * time on a turn that could only fail.
  *
  * Both jobs are bounded — extracting facts from retrieved pages, and writing a
  * solver against rules supplied in the brief — rather than open-ended

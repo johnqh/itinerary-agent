@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { toPlanDays } from "@/agent/optimizer";
+import { toPlanDays, unseatedMeals } from "@/agent/optimizer";
+import type { PlanDay } from "@/types/workspace";
 import { optimizerSchema } from "@/agent/optimizerAgent";
 
 /**
@@ -30,6 +31,46 @@ function payload(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("meals the scheduler did not seat", () => {
+  function planDay(meals: ("lunch" | "dinner")[]): PlanDay {
+    return {
+      date: "2026-09-12",
+      isCarDay: false,
+      items: meals.map((meal) => ({
+        kind: "meal" as const,
+        refId: "r1",
+        meal,
+        startTime: "12:30",
+        endTime: "13:30",
+      })),
+      legs: [],
+      summary: "",
+    };
+  }
+
+  test("reports each meal a day is missing", () => {
+    expect(unseatedMeals([planDay(["lunch"])])).toEqual([
+      { date: "2026-09-12", meal: "dinner", reason: expect.any(String) },
+    ]);
+  });
+
+  test("reports nothing when both meals are seated", () => {
+    expect(unseatedMeals([planDay(["lunch", "dinner"])])).toEqual([]);
+  });
+
+  /**
+   * The scheduler says only that a meal is absent. Why it is absent —
+   * everywhere shut, nothing near the route, a cuisine it would not
+   * compromise on — is something no part of this run learned, and the reason
+   * is read out to the traveller in the degraded banner.
+   */
+  test("does not claim a cause the scheduler never reported", () => {
+    const [missing] = unseatedMeals([planDay(["lunch"])]);
+    expect(missing!.reason).not.toMatch(/no restaurant (was )?open/i);
+    expect(missing!.reason).toMatch(/gave no reason|did not say/i);
+  });
+});
 
 describe("the shape the scheduler is asked for", () => {
   /**
