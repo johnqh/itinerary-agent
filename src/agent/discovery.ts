@@ -1,7 +1,11 @@
 import type { Attraction, Restaurant, TripRequest } from "@/types/workspace";
 import type { RejectedRecord } from "@/agent/normalize";
 import { normalizeDiscovery } from "@/agent/normalize";
-import { createClient } from "@/agent/client";
+import {
+  ORCHESTRATOR_MODEL,
+  RESEARCH_MCP_SERVER,
+  createClient,
+} from "@/agent/client";
 import {
   DISCOVERY_INSTRUCTIONS,
   discoveryPrompt,
@@ -43,9 +47,6 @@ export interface RunDiscoveryOptions {
   dates: string[];
   onProgress?: (progress: DiscoveryProgress) => void;
 }
-
-/** Orchestrator: reasons about coverage and delegates. */
-const ORCHESTRATOR_MODEL = "openai/gpt-5-6-sol";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -102,9 +103,11 @@ export async function runLiveDiscovery(
   const { data: session } = await client.sessions.create({
     agent: {
       spec: {
+        // Both named resources are what `harnessStatus()` preflights, so the
+        // checkbox the traveller sees and the turn it starts agree.
         model: { name: ORCHESTRATOR_MODEL },
         instructions: DISCOVERY_INSTRUCTIONS,
-        mcpServers: [{ name: "bright-data" }],
+        mcpServers: [{ name: RESEARCH_MCP_SERVER }],
         config: {
           dynamicSubAgents: { enabled: true },
           iterationLimit: 120,

@@ -42,12 +42,27 @@ across subagents and optimization runs once, globally, as deterministic code.
 
 ```bash
 bun install
-bun run dev        # workspace on http://localhost:5173
-bun run test       # unit and golden tests
+bun run setup:harness   # register the model provider and the web-data connector
+bun run dev             # workspace on http://localhost:5173
+bun run test            # unit and golden tests
 bun run typecheck
 bun run lint
 bun run build
 ```
+
+### Reaching the harness
+
+The workspace calls the harness through its own origin, so the browser makes no
+cross-origin request and no credential reaches the page. Both `bun run dev` and
+`bun run preview` proxy `/api` to `TRUEFORGE_BASE_URL`, which defaults to
+`http://localhost:8790`. A build served anywhere else has no such proxy in front
+of it and must be given `VITE_TRUEFORGE_BASE_URL` at build time, which then
+requires the harness to allow that origin. Both are documented in
+[.env.example](.env.example).
+
+Without a reachable harness — or without the model and web-data connector that
+discovery names — live research is switched off, the workspace says so, and the
+trip runs on the committed seed dataset.
 
 Every change lands through a reviewed pull request. Direct pushes to `main` are
 not part of this project's workflow.
