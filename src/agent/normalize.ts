@@ -118,11 +118,27 @@ function readSources(value: unknown): SourceRef[] {
   });
 }
 
+/** Extensions a browser will actually render as a picture. */
+const IMAGE_EXTENSIONS = /\.(?:jpe?g|png|webp|gif|avif)$/i;
+
+/**
+ * Photographs, not links to pages that contain photographs.
+ *
+ * An agent asked for images will sometimes return the page it found them on.
+ * That renders as a broken frame where a picture should be, so the path has to
+ * end in something a browser can draw. Query strings are ignored: image hosts
+ * routinely append tracking parameters after the extension.
+ */
 function readPhotoUrls(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
     const url = readHttpUrl(entry);
-    return url ? [url] : [];
+    if (!url) return [];
+    try {
+      return IMAGE_EXTENSIONS.test(new URL(url).pathname) ? [url] : [];
+    } catch {
+      return [];
+    }
   });
 }
 

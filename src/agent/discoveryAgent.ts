@@ -97,7 +97,12 @@ export function discoverySchema(dates: string[]) {
               ticketRequired: { type: "boolean" },
               ticketUrl: { type: ["string", "null"] },
               officialUrl: { type: ["string", "null"] },
-              photoUrls: { type: "array", items: { type: "string" } },
+              photoUrls: {
+                type: "array",
+                description:
+                  "One to three direct image URLs whose path ends in .jpg, .jpeg, .png or .webp. Not page URLs.",
+                items: { type: "string" },
+              },
             },
           },
         },
@@ -144,6 +149,14 @@ Efficiency rules. Tool calls are the expensive part of this job:
    details are still missing. Give each subagent a small, specific brief.
 3. Never pull a full page when a search result already answers the question.
 4. Do not return raw page text. Return only the structured record.
+
+Photographs. Every place needs one to three, and they are the first thing a
+traveller judges a place by, so they are not optional detail. Give direct image
+URLs — a link whose path ends in .jpg, .jpeg, .png or .webp — not the page the
+image sits on, which cannot be displayed. Prefer images from the official site
+or an encyclopaedia entry, and prefer a photograph of the place as it is now
+over an archive or historical image. If you genuinely cannot find one for a
+place, return an empty list rather than a link that is not an image.
 
 Coverage: aim for at least 12 attractions spanning different categories and
 neighbourhoods, plus at least 6 restaurants spread across the same areas so a

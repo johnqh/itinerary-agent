@@ -100,23 +100,16 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
         />
       </label>
 
-      {dataset ? (
-        <p className="rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-muted">
-          <span className="font-medium text-ink">{dataset.label}</span> is covered
-          offline, so its places load instantly. Travel between them is routed for
-          real when a routing key is configured.
-        </p>
-      ) : liveResearch === false ? (
+      {dataset ? null : liveResearch === false ? (
+
         <p className="rounded-md border border-car/30 bg-car/5 px-3 py-2 text-xs text-ink/80">
-          The research agent is not reachable, and there is no offline data for{" "}
-          {destination.trim() || "that destination"}. Try {coveredCityLabels().join(" or ")},
-          which need no research at all.
+          Research is unavailable right now, so a new destination cannot be looked
+          up. {coveredCityLabels().join(" and ")} are ready to plan.
         </p>
       ) : (
         <p className="rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-muted">
-          No offline data for {destination.trim() || "that destination"}, so the
-          research agent will look it up on the open web. That takes several minutes.
-          {" "}{coveredCityLabels().join(" and ")} load instantly.
+          Researching {destination.trim() || "a new destination"} takes a few
+          minutes. {coveredCityLabels().join(" and ")} are ready now.
         </p>
       )}
 

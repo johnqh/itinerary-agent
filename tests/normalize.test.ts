@@ -122,6 +122,31 @@ describe("repairing salvageable records", () => {
     expect(result.attractions[0]!.sources).toEqual([{ url: "https://example.com/a", title: undefined }]);
   });
 
+  test("keeps a photo url that carries a query string", () => {
+    // Image hosts routinely append tracking parameters; the extension is in
+    // the path, not at the end of the string.
+    const result = run([
+      raw({ photoUrls: ["https://example.com/a.jpg?utm_source=x&w=800"] }),
+    ]);
+    expect(result.attractions[0]!.photoUrls).toHaveLength(1);
+  });
+
+  test("drops a link to a page rather than showing it as a photograph", () => {
+    // An agent asked for images will sometimes return the page it found them
+    // on. Rendering that gives a broken frame where a photograph should be.
+    const result = run([
+      raw({
+        photoUrls: [
+          "https://example.com/attractions/senso-ji",
+          "https://example.com/senso-ji.jpg",
+        ],
+      }),
+    ]);
+    expect(result.attractions[0]!.photoUrls).toEqual([
+      "https://example.com/senso-ji.jpg",
+    ]);
+  });
+
   test("keeps only http and https photo urls", () => {
     const result = run([
       raw({ photoUrls: ["javascript:alert(1)", "https://example.com/p.jpg"] }),

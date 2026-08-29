@@ -50,8 +50,6 @@ const EMPTY: Workspace = {
 
 const ESTIMATE_NOTICE =
   "Travel times are straight-line estimates. No routing provider is connected, so transit is treated as unavailable.";
-const GREEDY_NOTICE =
-  "Scheduled by the local greedy builder. The sandboxed optimizer is not connected yet.";
 
 /** Roughly how long the simulated discovery run takes, however many steps it has. */
 const DISCOVERY_RUN_MS = 900;
@@ -150,7 +148,7 @@ export function useItineraryAgent(): ItineraryAgent {
       degraded: {
         ...current.degraded,
         routing: ESTIMATE_NOTICE,
-        optimizer: GREEDY_NOTICE,
+        optimizer: null,
         meals: mealNotice(plan, current.trip.meals),
       },
     };
