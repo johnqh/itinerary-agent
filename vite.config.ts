@@ -25,6 +25,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    // Node by default: almost everything here is a pure module, and a DOM per
+    // file is not free. The few tests that mount the workspace ask for jsdom
+    // with a `@vitest-environment` docblock.
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
   },
 });

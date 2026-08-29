@@ -79,6 +79,22 @@ export default function App() {
 
   const handleTileError = useCallback((notice: string) => setMapNotice(notice), []);
 
+  /**
+   * Discards the trip and everything on screen that described it.
+   *
+   * The workspace is only half of what the traveller is looking at: the open
+   * candidate, the day showing, and the map warning all live here. Candidate
+   * ids repeat between trips, so leaving them would reopen the discarded
+   * trip's selection, and a map warning left standing would name a degraded
+   * mode for a run that never happened.
+   */
+  const handleNewTrip = useCallback(() => {
+    setSelection(null);
+    setActiveDayIndex(0);
+    setMapNotice(null);
+    agent.reset();
+  }, [agent]);
+
   if (!workspace.trip) {
     return <TripForm onSubmit={agent.createTrip} liveResearch={liveResearch} />;
   }
@@ -121,8 +137,24 @@ export default function App() {
               Plan again
             </button>
           )}
+          <button
+            type="button"
+            onClick={handleNewTrip}
+            className="rounded-md border border-transparent px-2 py-1.5 text-[13px] text-muted transition-colors hover:border-hairline hover:text-ink"
+          >
+            New trip
+          </button>
         </div>
       </header>
+
+      {workspace.restoredAt && (
+        <div className="border-b border-hairline bg-surface px-4 py-1.5">
+          <span className="text-[11px] text-muted">
+            Picked up where you left off on{" "}
+            {new Date(workspace.restoredAt).toLocaleString()}.
+          </span>
+        </div>
+      )}
 
       <DegradedBanner degraded={degraded} />
 

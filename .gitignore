@@ -21,3 +21,6 @@ sandbox-scratch/
 !src/data/
 !src/data/**
 tmp/
+
+# Agent worktrees are separate checkouts, not project content.
+.claude/worktrees/
