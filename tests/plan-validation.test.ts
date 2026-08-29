@@ -121,6 +121,30 @@ describe("accepting a sound schedule", () => {
   });
 });
 
+describe("rejecting a vacuous schedule", () => {
+  test("rejects a day that visits nothing", () => {
+    // Scheduling nothing satisfies every other rule trivially. Without this a
+    // scheduler under pressure can pass by giving up, which is the one answer
+    // no traveller can use.
+    const result = check([day({ items: [], legs: [] }), secondDay()]);
+    expect(result.ok).toBe(false);
+    expect(result.violations.join(" ")).toMatch(/nothing|no attraction/i);
+  });
+
+  test("rejects a trip whose days are all empty", () => {
+    const result = check([
+      day({ items: [], legs: [] }),
+      secondDay({ items: [], legs: [] }),
+    ]);
+    expect(result.ok).toBe(false);
+  });
+
+  test("accepts a day that visits at least one place", () => {
+    const result = check([day(), secondDay()]);
+    expect(result.violations.join(" ")).not.toMatch(/nothing|no attraction/i);
+  });
+});
+
 describe("rejecting an unfollowable schedule", () => {
   test("rejects an attraction scheduled on two days", () => {
     const result = check([day(), day({ date: DATES[1]! })]);

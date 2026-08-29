@@ -44,6 +44,10 @@ export type OpenCheck = "open" | "closed" | "unknown";
  * A closing clock at or before the opening one closes the next day: 18:00–02:00
  * is one evening, not an empty interval. Both bounds are compared on the
  * opening day's timeline, which is the only day this planner schedules into.
+ *
+ * A date may carry more than one interval — lunch and dinner either side of an
+ * afternoon closure. The visit has to sit inside one of them: spanning the gap
+ * is being there while the door is locked.
  */
 export function openDuring(
   hours: Hours | undefined,
@@ -52,10 +56,16 @@ export function openDuring(
 ): OpenCheck {
   if (!hours || hours.status === "unknown") return "unknown";
   if (hours.status === "closed") return "closed";
-  const open = toMinutes(hours.open);
-  const closeClock = toMinutes(hours.close);
-  const close = closeClock <= open ? closeClock + MINUTES_PER_DAY : closeClock;
-  return startMinutes >= open && endMinutes <= close ? "open" : "closed";
+
+  const covers = (interval: { open: string; close: string }): boolean => {
+    const open = toMinutes(interval.open);
+    const closeClock = toMinutes(interval.close);
+    const close = closeClock <= open ? closeClock + MINUTES_PER_DAY : closeClock;
+    return startMinutes >= open && endMinutes <= close;
+  };
+
+  const intervals = [{ open: hours.open, close: hours.close }, ...(hours.alsoOpen ?? [])];
+  return intervals.some(covers) ? "open" : "closed";
 }
 
 export function fitsInDay(startMinutes: number, durationMinutes: number): boolean {

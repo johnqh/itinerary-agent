@@ -105,6 +105,13 @@ export function validateAgentPlan(
 
     const stops: (Stop | undefined)[] = new Array(day.items.length);
     const mealsSeen = new Set<MealKind>();
+    // Scheduling nothing satisfies every other rule trivially, so a scheduler
+    // under pressure can pass by giving up. That is the one answer a traveller
+    // cannot use, and it must fail like any other unfollowable day.
+    if (!day.items.some((item) => item.kind === "attraction")) {
+      violations.push(`${day.date} visits nothing.`);
+    }
+
     let previousEnd = -1;
 
     day.items.forEach((item, index) => {

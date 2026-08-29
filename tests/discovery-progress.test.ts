@@ -81,3 +81,40 @@ describe("createProgressTracker", () => {
     expect(tracker.subagentCount).toBe(2);
   });
 });
+
+/**
+ * Research finishing is not the run finishing.
+ *
+ * Photographs and the nearby meal search run afterwards and take Places calls
+ * of their own. Reported as complete, a run stuck in either of them looks
+ * exactly like a finished one, which is the failure this progress model exists
+ * to prevent.
+ */
+describe("the work after research", () => {
+  test("fetching photographs is not reported as a finished run", () => {
+    const tracker = createProgressTracker();
+    tracker.start();
+    tracker.handle("thread.done");
+    const progress = tracker.photographs(2, 9);
+    expect(progress.done).toBeLessThan(progress.total);
+    expect(progress.label).toContain("2/9");
+  });
+
+  test("searching for meals is not reported as a finished run either", () => {
+    const tracker = createProgressTracker();
+    tracker.start();
+    const progress = tracker.meals();
+    expect(progress.done).toBeLessThan(progress.total);
+  });
+
+  test("each stage after research moves forward, and finish is still the end", () => {
+    const tracker = createProgressTracker();
+    tracker.start();
+    const photos = tracker.photographs(1, 3);
+    const meals = tracker.meals();
+    const done = tracker.finish();
+    expect(meals.done).toBeGreaterThan(photos.done);
+    expect(done.done).toBeGreaterThan(meals.done);
+    expect(done.done).toBe(done.total);
+  });
+});

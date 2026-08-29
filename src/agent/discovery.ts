@@ -1,6 +1,6 @@
 import type { Attraction, Restaurant, TripRequest } from "@/types/workspace";
 import type { RejectedRecord } from "@/agent/normalize";
-import { normalizeDiscovery } from "@/agent/normalize";
+import { mergeRestaurantPools, normalizeDiscovery } from "@/agent/normalize";
 import {
   ORCHESTRATOR_MODEL,
   RESEARCH_MCP_SERVER,
@@ -12,6 +12,8 @@ import {
   discoverySchema,
 } from "@/agent/discoveryAgent";
 import { createProgressTracker } from "@/agent/discoveryProgress";
+import { attachPhotos } from "@/routing/placePhotos";
+import { createNearbyFinder, gatherRestaurantsNearDays } from "@/routing/mealSearch";
 
 /**
  * Runs one live discovery turn.
@@ -136,12 +138,37 @@ export async function runLiveDiscovery(
 
   const payload = readTurnOutput(finalState);
   const normalized = normalizeDiscovery(payload, dates);
+
+  // Research rarely returns usable image URLs, and a place with no picture is
+  // the first thing a traveller notices. Places already holds photographs for
+  // somewhere it knows, so anything still without one is given its own.
+  const withPhotos = await attachPhotos(
+    normalized.attractions,
+    trip.destination,
+    (done, total) => onProgress?.(tracker.photographs(done, total)),
+  );
+  // Restaurants are found where the days will be, not asked for up front.
+  // Clustering the attractions the way the planner will means each search
+  // happens around a centre a day is actually built around, so the traveller
+  // is not sent across town for dinner.
+  onProgress?.(tracker.meals());
+  const nearbyRestaurants = await gatherRestaurantsNearDays(
+    withPhotos,
+    dates,
+    createNearbyFinder(dates),
+  );
+
   onProgress?.(tracker.finish());
 
   return {
     sessionId: session.id,
-    attractions: normalized.attractions,
-    restaurants: normalized.restaurants,
+    attractions: withPhotos,
+    // Anything the research turn happened to return is kept, but the nearby
+    // search is what makes a meal reachable from that day's route. The two
+    // pools identify a place differently — a provider id against a name slug —
+    // so they are merged rather than concatenated: one venue arriving from
+    // both would otherwise be two options the planner could seat twice.
+    restaurants: mergeRestaurantPools(nearbyRestaurants, normalized.restaurants),
     rejected: normalized.rejected,
     subagentCount: tracker.subagentCount,
   };

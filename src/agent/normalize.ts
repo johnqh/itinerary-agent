@@ -1,3 +1,4 @@
+import { isPlacePhotoUrl } from "@/routing/placePhotos";
 import type {
   Attraction,
   Hours,
@@ -132,6 +133,10 @@ const IMAGE_EXTENSIONS = /\.(?:jpe?g|png|webp|gif|avif)$/i;
 function readPhotoUrls(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
+    // A photo fetched from Places is served through this origin and has no
+    // file extension, so it is recognised by shape rather than by suffix.
+    if (typeof entry === "string" && isPlacePhotoUrl(entry)) return [entry];
+
     const url = readHttpUrl(entry);
     if (!url) return [];
     try {
@@ -377,4 +382,41 @@ export function normalizeDiscovery(raw: unknown, dates: string[]): NormalizeResu
     restaurants: restaurants.values(),
     rejected,
   };
+}
+
+/**
+ * Folds restaurant pools from different sources into one.
+ *
+ * The nearby search identifies a place by its provider id and research
+ * identifies it by a slug of its name, so the same venue arriving from both
+ * carries two ids and survives a plain concatenation twice. The planner then
+ * treats it as two options and can seat lunch and dinner at what the traveller
+ * experiences as the same restaurant on the same day.
+ *
+ * Identity is the one this module already uses for places: the same name
+ * within a couple of hundred metres. That keeps two branches of a chain
+ * distinct, which they are.
+ *
+ * Each record keeps the id it arrived with, and a duplicate resolves to the id
+ * the earliest pool carried: an id here is what the plan, the map markers and
+ * the traveller's ratings resolve a place by, so it may not be reassigned.
+ */
+export function mergeRestaurantPools(...pools: Restaurant[][]): Restaurant[] {
+  const kept: { slug: string; record: Restaurant }[] = [];
+
+  for (const restaurant of pools.flat()) {
+    const slug = slugify(restaurant.name);
+    const twin = kept.find(
+      (entry) =>
+        entry.slug === slug &&
+        haversineMeters(entry.record.location, restaurant.location) <= SAME_PLACE_METERS,
+    );
+    if (twin) {
+      twin.record = keepBetter(twin.record, { ...restaurant, id: twin.record.id });
+    } else {
+      kept.push({ slug, record: restaurant });
+    }
+  }
+
+  return kept.map((entry) => entry.record);
 }
