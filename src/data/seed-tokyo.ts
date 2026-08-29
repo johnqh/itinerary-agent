@@ -57,7 +57,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 60,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ueno_park.jpg/1280px-Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Ueno_Seiyoken_in_the_Meiji_era.JPG/1280px-Ueno_Seiyoken_in_the_Meiji_era.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/%E4%B8%8A%E9%87%8E%E6%81%A9%E8%B3%9C%E5%85%AC%E5%9C%92_-_panoramio_%287%29.jpg/1280px-%E4%B8%8A%E9%87%8E%E6%81%A9%E8%B3%9C%E5%85%AC%E5%9C%92_-_panoramio_%287%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ueno_park.jpg/1280px-Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/%E4%B8%8A%E9%87%8E%E6%81%A9%E8%B3%9C%E5%85%AC%E5%9C%92_-_panoramio_%287%29.jpg/1280px-%E4%B8%8A%E9%87%8E%E6%81%A9%E8%B3%9C%E5%85%AC%E5%9C%92_-_panoramio_%287%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tokyo-national-museum",
