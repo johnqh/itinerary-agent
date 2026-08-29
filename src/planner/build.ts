@@ -51,16 +51,69 @@ const MAX_ATTRACTIONS_PER_DAY: Record<Pace, number> = {
   packed: 8,
 };
 
+/**
+ * The longest trip the planner will expand.
+ *
+ * Every date materializes a day, and every day runs the greedy builder, so an
+ * unbounded range is a synchronous browser freeze rather than a slow answer.
+ * A month of full days is well past any itinerary this planner is useful for.
+ */
+export const MAX_TRIP_DAYS = 30;
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Parses `YYYY-MM-DD` as a UTC midnight, rejecting anything that is not that. */
+function parseTripDate(value: string): Date | null {
+  if (!ISO_DATE.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  // `Date` silently rolls 2026-02-30 forward; a round trip catches that.
+  if (date.toISOString().slice(0, 10) !== value) return null;
+  return date;
+}
+
+/**
+ * Why a trip's date range cannot be planned, or null when it can.
+ *
+ * The form and the planner share this so the two can never disagree. Lexical
+ * comparison alone is not enough: two empty strings compare as ordered and
+ * would otherwise expand to a plausible-looking zero-day itinerary.
+ */
+export function validateTripDates(startDate: string, endDate: string): string | null {
+  if (!startDate.trim()) return "Choose a first day for the trip.";
+  if (!endDate.trim()) return "Choose a last day for the trip.";
+
+  const start = parseTripDate(startDate);
+  const end = parseTripDate(endDate);
+  if (!start || !end) {
+    return "Enter both days as real calendar dates (YYYY-MM-DD).";
+  }
+
+  if (end.getTime() < start.getTime()) {
+    return "The last day cannot fall before the first.";
+  }
+
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  if (days > MAX_TRIP_DAYS) {
+    return `Trips are limited to ${MAX_TRIP_DAYS} days; this range covers ${days}.`;
+  }
+
+  return null;
+}
+
 export function tripDates(trip: TripRequest): string[] {
+  if (validateTripDates(trip.startDate, trip.endDate)) return [];
+
   const dates: string[] = [];
   const cursor = new Date(`${trip.startDate}T00:00:00Z`);
   const end = new Date(`${trip.endDate}T00:00:00Z`);
-  while (cursor.getTime() <= end.getTime()) {
+  while (cursor.getTime() <= end.getTime() && dates.length < MAX_TRIP_DAYS) {
     dates.push(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dates;
 }
+
 
 interface Segment {
   start: number;
@@ -75,6 +128,12 @@ interface FilledSegment {
 
 export function buildPlan(input: BuildPlanInput): Plan {
   const { trip, attractions, restaurants, ratings } = input;
+
+  // Fail loudly at the boundary. A zero-day "ready" plan reads as a successful
+  // answer to a question the traveller never got to ask.
+  const invalid = validateTripDates(trip.startDate, trip.endDate);
+  if (invalid) throw new Error(invalid);
+
   const dates = tripDates(trip);
 
   const excluded: ExclusionReason[] = [];
