@@ -792,40 +792,78 @@ export function repickMeals(
   alreadyUsedIds: string[],
 ): RepickResult {
   const chosen = new Set(alreadyUsedIds);
+  /** Restaurants an earlier meal of this same day has just taken. */
+  const claimedToday = new Set<string>();
   const next = items.map((item) => ({ ...item }));
+
+  const travelMinutes = (from: LatLng, to: LatLng): number =>
+    selectMode(estimateTravel(from, to), {
+      isCarDay: trip.hasRentalCar,
+      pace: trip.pace,
+    }).durationMinutes;
 
   next.forEach((item, index) => {
     if (item.kind !== "meal" || !item.meal) return;
 
-    const before = positions.get(next[index - 1]?.refId ?? "");
-    const onward = positions.get(next[index + 1]?.refId ?? "") ?? null;
-    if (!before) {
+    const previous = next[index - 1];
+    const following = next[index + 1];
+    const before = positions.get(previous?.refId ?? "");
+    const onward = positions.get(following?.refId ?? "") ?? null;
+    if (!before || !previous) {
       chosen.add(item.refId);
       return;
     }
 
-    const window =
-      item.meal === "lunch"
-        ? { start: toMinutes(item.startTime), end: toMinutes(item.endTime) }
-        : { start: toMinutes(item.startTime), end: toMinutes(item.endTime) };
+    const window = { start: toMinutes(item.startTime), end: toMinutes(item.endTime) };
+
+    // The clock does not move when the restaurant does. The first pass reserved
+    // travel to the restaurant it chose, so a replacement is only an option if
+    // it fits the same two gaps: a smaller total detour can still hide a leg
+    // that no longer fits, which reads as a day the traveller cannot walk.
+    const gapBefore = window.start - toMinutes(previous.endTime);
+    const gapAfter = following ? toMinutes(following.startTime) - window.end : null;
+    const reachable = (spot: Restaurant): boolean => {
+      if (travelMinutes(before, spot.location) > gapBefore) return false;
+      if (onward && gapAfter !== null) {
+        if (travelMinutes(spot.location, onward) > gapAfter) return false;
+      }
+      return true;
+    };
+
+    // Nothing reachable means the first pass's choice is the only one that
+    // fits, so it stays; a feasible day beats a marginally shorter one.
+    const withinReach = restaurants.filter(reachable);
+    if (withinReach.length === 0) {
+      chosen.add(item.refId);
+      claimedToday.add(item.refId);
+      return;
+    }
 
     const placement = pickRestaurant({
-      restaurants,
+      restaurants: withinReach,
       near: before,
       onwardTo: onward,
       date,
       meal: item.meal,
       window,
       meals: trip.meals,
-      excludeIds: [...chosen].filter((id) => id !== item.refId),
+      // This meal's own restaurant is not an exclusion for itself — unless the
+      // other meal of the day has already taken it, in which case keeping it
+      // here would seat the traveller in the same room twice.
+      excludeIds: [...chosen].filter(
+        (id) => id !== item.refId || claimedToday.has(id),
+      ),
     });
 
     if (placement.spot) {
       item.refId = placement.spot.id;
-      if (placement.note) item.notes = placement.note;
+      // Assigned rather than merged: the note describes the restaurant that
+      // was chosen, so a note earned by the one it replaces is simply false.
+      item.notes = placement.note;
       positions.set(placement.spot.id, placement.spot.location);
     }
     chosen.add(item.refId);
+    claimedToday.add(item.refId);
   });
 
   return { items: next, usedIds: [...chosen] };

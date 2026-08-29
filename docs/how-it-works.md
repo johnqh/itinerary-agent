@@ -112,7 +112,9 @@ A meal is chosen by the **detour it adds** — `before → restaurant → after`
 minus the direct hop — not by its distance from the previous stop, which is
 what sends a traveller backwards. Because a meal must be picked before the day
 around it is settled, every meal is **chosen again** once the day exists,
-against the stops it genuinely falls between.
+against the stops it genuinely falls between — and only among the restaurants
+both of those gaps can still reach, because the second pass moves the
+restaurant and not the clock.
 
 A cuisine preference is worth about ten minutes of extra walking. Past that the
 itinerary takes the closer option and says why.
