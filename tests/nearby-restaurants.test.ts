@@ -109,6 +109,20 @@ describe("a published week", () => {
     expect(restaurant!.hoursByDate["2026-09-13"]).toEqual({ status: "closed" });
   });
 
+  test("a place that never closes is open, not unknown", () => {
+    // Places says a 24-hour business by publishing one period that opens at
+    // the start of the week and never closes.
+    const allDay = place({
+      regularOpeningHours: { periods: [{ open: { day: 0, hour: 0, minute: 0 } }] },
+    });
+    const [restaurant] = parseNearbyResponse({ places: [allDay] }, ["2026-09-12"]);
+    const hours = restaurant!.hoursByDate["2026-09-12"];
+
+    expect(hours!.status).toBe("open");
+    expect(openDuring(hours, toMinutes("03:00"), toMinutes("04:00"))).toBe("open");
+    expect(openDuring(hours, toMinutes("19:00"), toMinutes("20:30"))).toBe("open");
+  });
+
   test("keeps the whole day's service, not only the first sitting", () => {
     const split = place({
       regularOpeningHours: {

@@ -69,6 +69,28 @@ function clock(hour: unknown, minute: unknown): string | null {
 }
 
 /**
+ * Midnight to midnight, which `openDuring` reads as the whole day: a closing
+ * clock at or before the opening one runs into the following morning.
+ */
+const ALL_DAY: Hours = { status: "open", open: "00:00", close: "00:00" };
+
+/**
+ * The shape Places uses for a place that never closes: exactly one period,
+ * opening at the very start of the week, with no closing time.
+ *
+ * Matched narrowly on purpose. A period missing its close for any other reason
+ * is a record this parser cannot read, and reading it as "open forever" would
+ * put an opening time on screen that nobody published.
+ */
+function isAlwaysOpen(periods: unknown[]): boolean {
+  if (periods.length !== 1) return false;
+  const only = periods[0];
+  if (!isRecord(only) || isRecord(only.close) || !isRecord(only.open)) return false;
+  const { day, hour, minute } = only.open;
+  return day === 0 && hour === 0 && (minute === undefined || minute === 0);
+}
+
+/**
  * Google publishes a weekly pattern; a trip needs specific dates.
  *
  * `periods` is the whole week's opening, so a weekday it does not mention is a
@@ -85,6 +107,16 @@ function clock(hour: unknown, minute: unknown): string | null {
 function hoursForDates(opening: unknown, dates: string[]): Record<string, Hours> {
   const periods =
     isRecord(opening) && Array.isArray(opening.periods) ? opening.periods : null;
+
+  // Places says "never closes" by publishing one period that opens at the
+  // start of the week with no closing time at all. Read literally that is a
+  // week with six unmentioned days, which would shut a 24-hour place on five
+  // of them; it is in fact the one place that is open whenever asked.
+  if (periods && isAlwaysOpen(periods)) {
+    return Object.fromEntries(
+      dates.map((date) => [date, ALL_DAY]),
+    );
+  }
 
   return Object.fromEntries(
     dates.map((date) => {

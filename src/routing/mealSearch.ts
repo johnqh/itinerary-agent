@@ -1,5 +1,13 @@
-import type { Attraction, LatLng, Restaurant } from "@/types/workspace";
+import type {
+  Attraction,
+  LatLng,
+  MealKind,
+  Restaurant,
+  TripRequest,
+} from "@/types/workspace";
 import { centroid, clusterByGeography, haversineMeters } from "@/planner/geo";
+import { MEAL_DURATIONS, violatesCuisineConstraint } from "@/planner/meals";
+import { MEAL_WINDOWS, openDuring } from "@/planner/time";
 import { findRestaurantsNear, NEARBY_RADIUS_METERS } from "@/routing/nearbyRestaurants";
 
 /**
@@ -16,12 +24,24 @@ import { findRestaurantsNear, NEARBY_RADIUS_METERS } from "@/routing/nearbyResta
 
 export type NearbyFinder = (near: LatLng) => Promise<Restaurant[]>;
 
-/** Where each day will be centred, clustered exactly as the planner clusters. */
-function dayCentres(attractions: Attraction[], dayCount: number): LatLng[] {
-  if (attractions.length === 0 || dayCount === 0) return [];
-  return clusterByGeography(attractions, dayCount)
+/**
+ * Where each day will be centred, clustered exactly as the planner clusters,
+ * and paired with the date the planner will give it.
+ *
+ * The west-to-east ordering is the planner's own, so the date beside a centre
+ * is the date whose opening hours actually decide whether a restaurant there
+ * can seat anybody.
+ */
+function dayCentres(
+  attractions: Attraction[],
+  dates: string[],
+): { centre: LatLng; date: string }[] {
+  if (attractions.length === 0 || dates.length === 0) return [];
+  return clusterByGeography(attractions, dates.length)
     .filter((cluster) => cluster.length > 0)
-    .map((cluster) => centroid(cluster.map((a) => a.location)));
+    .map((cluster) => centroid(cluster.map((a) => a.location)))
+    .sort((a, b) => a.lng - b.lng)
+    .map((centre, index) => ({ centre, date: dates[index] ?? dates[dates.length - 1]! }));
 }
 
 /** Searches every centre at once, letting one failure cost only its own day. */
@@ -51,18 +71,58 @@ export async function gatherRestaurantsNearDays(
   dates: string[],
   find: NearbyFinder,
 ): Promise<Restaurant[]> {
-  if (dates.length === 0) return [];
-  return searchAround(dayCentres(attractions, dates.length), find);
+  return searchAround(
+    dayCentres(attractions, dates).map((day) => day.centre),
+    find,
+  );
 }
 
 /**
- * A day eats twice, and not twice in the same place if it can help it, so one
- * restaurant beside a centre is not the same as that day being catered for.
+ * Whether this restaurant could seat this meal on this date.
+ *
+ * The rules are the planner's own, so that a day counted as fed is a day the
+ * planner will actually be able to feed. Unknown hours stay eligible, as they
+ * do downstream: an unconfirmed opening time is not a closure, and treating it
+ * as one would send the search out after every live-researched day.
  */
-const MEALS_PER_DAY = 2;
+function couldSeat(
+  restaurant: Restaurant,
+  date: string,
+  meal: MealKind,
+  meals: TripRequest["meals"],
+): boolean {
+  if (violatesCuisineConstraint(restaurant, meals)) return false;
+  const [start] = MEAL_WINDOWS[meal].target;
+  const hours = restaurant.hoursByDate[date];
+  return openDuring(hours, start, start + MEAL_DURATIONS[meal]) !== "closed";
+}
 
 /**
- * Asks again, once the days are known, only where the pool does not reach.
+ * Whether a day already has meals, rather than merely restaurants.
+ *
+ * Counting places within walking distance is not the question: a place shut
+ * that day, or ruled out by a cuisine the traveller said they would not
+ * compromise on, cannot seat them. Both meals need somewhere, and preferably
+ * not the same somewhere twice, so the day needs two distinct venues between
+ * which lunch and dinner are both covered.
+ */
+function alreadyFed(
+  centre: LatLng,
+  date: string,
+  have: Restaurant[],
+  meals: TripRequest["meals"],
+): boolean {
+  const withinReach = have.filter(
+    (r) => haversineMeters(centre, r.location) <= NEARBY_RADIUS_METERS,
+  );
+  const forLunch = withinReach.filter((r) => couldSeat(r, date, "lunch", meals));
+  const forDinner = withinReach.filter((r) => couldSeat(r, date, "dinner", meals));
+  const venues = new Set([...forLunch, ...forDinner].map((r) => r.id));
+  return forLunch.length > 0 && forDinner.length > 0 && venues.size >= 2;
+}
+
+/**
+ * Asks again, once the days are known, only where the pool cannot feed them.
  *
  * Discovery has to search before the traveller has rated anything, so it
  * clusters every candidate found. The planner clusters what survives rating
@@ -70,25 +130,23 @@ const MEALS_PER_DAY = 2;
  * the traveller rejects can consume a day's search and leave the day that gets
  * built with nothing within walking distance.
  *
- * Only centres the existing pool cannot feed are searched, so an itinerary
- * whose clusters barely moved costs nothing, and a rating that genuinely
- * redraws a day pays for exactly that day.
+ * Only centres that cannot already be fed are searched, so an itinerary whose
+ * clusters barely moved costs nothing, and a rating that genuinely redraws a
+ * day pays for exactly that day.
  *
  * Returns only what is new. Merging is the caller's, because a restaurant
  * already in the pool may be the same venue under another source's id.
  */
 export async function fillMealGapsNearDays(
   attractions: Attraction[],
-  dayCount: number,
+  dates: string[],
   have: Restaurant[],
+  meals: TripRequest["meals"],
   find: NearbyFinder,
 ): Promise<Restaurant[]> {
-  const uncovered = dayCentres(attractions, dayCount).filter(
-    (centre) =>
-      have.filter(
-        (r) => haversineMeters(centre, r.location) <= NEARBY_RADIUS_METERS,
-      ).length < MEALS_PER_DAY,
-  );
+  const uncovered = dayCentres(attractions, dates)
+    .filter((day) => !alreadyFed(day.centre, day.date, have, meals))
+    .map((day) => day.centre);
   if (uncovered.length === 0) return [];
 
   const known = new Set(have.map((r) => r.id));

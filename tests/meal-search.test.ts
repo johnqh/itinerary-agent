@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { fillMealGapsNearDays, gatherRestaurantsNearDays } from "@/routing/mealSearch";
-import type { Attraction, LatLng, Restaurant } from "@/types/workspace";
+import type { Attraction, LatLng, Restaurant, TripRequest } from "@/types/workspace";
 
 /**
  * Restaurants are looked for where the days are.
@@ -109,6 +109,9 @@ describe("fillMealGapsNearDays", () => {
     return { ...restaurant(id), location };
   }
 
+  const DATES = ["d1", "d2"];
+  const ANY_FOOD: TripRequest["meals"] = { cuisines: [], strictness: "flexible" };
+
   // Two restaurants beside each cluster: enough for the day's two meals.
   const nearNorth = [
     at("north-a", { lat: 37.8015, lng: -122.4115 }),
@@ -121,7 +124,9 @@ describe("fillMealGapsNearDays", () => {
 
   test("spends nothing when every day already has somewhere to eat", async () => {
     const find = vi.fn(async () => [restaurant("new")]);
-    const found = await fillMealGapsNearDays(attractions, 2, [...nearNorth, ...nearSouth], find);
+    const found = await fillMealGapsNearDays(
+      attractions, DATES, [...nearNorth, ...nearSouth], ANY_FOOD, find,
+    );
     expect(find).not.toHaveBeenCalled();
     expect(found).toEqual([]);
   });
@@ -132,7 +137,7 @@ describe("fillMealGapsNearDays", () => {
       centres.push(near);
       return [restaurant("late-find")];
     });
-    const found = await fillMealGapsNearDays(attractions, 2, nearNorth, find);
+    const found = await fillMealGapsNearDays(attractions, DATES, nearNorth, ANY_FOOD, find);
     expect(find).toHaveBeenCalledTimes(1);
     expect(centres[0]!.lat).toBeLessThan(37.76);
     expect(found.map((r) => r.id)).toEqual(["late-find"]);
@@ -140,13 +145,15 @@ describe("fillMealGapsNearDays", () => {
 
   test("one meal beside a day is not enough for a day that eats twice", async () => {
     const find = vi.fn(async () => [restaurant("late-find")]);
-    await fillMealGapsNearDays(attractions, 2, [nearNorth[0]!, ...nearSouth], find);
+    await fillMealGapsNearDays(
+      attractions, DATES, [nearNorth[0]!, ...nearSouth], ANY_FOOD, find,
+    );
     expect(find).toHaveBeenCalledTimes(1);
   });
 
   test("never returns a restaurant the pool already holds", async () => {
     const find = vi.fn(async () => [at("north-a", { lat: 37.7515, lng: -122.4215 })]);
-    const found = await fillMealGapsNearDays(attractions, 2, nearNorth, find);
+    const found = await fillMealGapsNearDays(attractions, DATES, nearNorth, ANY_FOOD, find);
     expect(found).toEqual([]);
   });
 
@@ -154,6 +161,72 @@ describe("fillMealGapsNearDays", () => {
     const find = vi.fn(async () => {
       throw new Error("nearby unavailable");
     });
-    await expect(fillMealGapsNearDays(attractions, 2, nearNorth, find)).resolves.toEqual([]);
+    await expect(
+      fillMealGapsNearDays(attractions, DATES, nearNorth, ANY_FOOD, find),
+    ).resolves.toEqual([]);
+  });
+
+  /**
+   * A restaurant near a day is not the same as a meal on that day. Counting
+   * places that cannot seat the traveller — shut on the date, or off-limits
+   * under a cuisine they said they would not compromise on — calls a day fed
+   * and skips the search that would have fed it.
+   *
+   * The west cluster is the first date, because that is the order the planner
+   * assigns clusters to days.
+   */
+  const closedOnFirstDay = nearSouth.map((r) => ({
+    ...r,
+    hoursByDate: { d1: { status: "closed" } as const },
+  }));
+
+  test("a day whose only restaurants are shut that day is not fed", async () => {
+    const centres: LatLng[] = [];
+    const find = vi.fn(async (near: LatLng) => {
+      centres.push(near);
+      return [restaurant("open-place")];
+    });
+    await fillMealGapsNearDays(
+      attractions, DATES, [...nearNorth, ...closedOnFirstDay], ANY_FOOD, find,
+    );
+    expect(find).toHaveBeenCalledTimes(1);
+    expect(centres[0]!.lat).toBeLessThan(37.76);
+  });
+
+  test("a place that serves lunch but shuts before dinner leaves the day short", async () => {
+    const lunchOnly = nearSouth.map((r) => ({
+      ...r,
+      hoursByDate: { d1: { status: "open", open: "11:00", close: "15:00" } as const },
+    }));
+    const find = vi.fn(async () => [restaurant("dinner-place")]);
+    await fillMealGapsNearDays(
+      attractions, DATES, [...nearNorth, ...lunchOnly], ANY_FOOD, find,
+    );
+    expect(find).toHaveBeenCalledTimes(1);
+  });
+
+  test("cuisine the traveller will not compromise on rules a restaurant out", async () => {
+    const find = vi.fn(async () => [restaurant("sushi-place")]);
+    await fillMealGapsNearDays(
+      attractions,
+      DATES,
+      [...nearNorth, ...nearSouth],
+      { cuisines: ["sushi"], strictness: "strong" },
+      find,
+    );
+    // Neither cluster has a single restaurant that serves what was asked for.
+    expect(find).toHaveBeenCalledTimes(2);
+  });
+
+  test("a preference that is only a preference rules nothing out", async () => {
+    const find = vi.fn(async () => [restaurant("sushi-place")]);
+    await fillMealGapsNearDays(
+      attractions,
+      DATES,
+      [...nearNorth, ...nearSouth],
+      { cuisines: ["sushi"], strictness: "prefer" },
+      find,
+    );
+    expect(find).not.toHaveBeenCalled();
   });
 });

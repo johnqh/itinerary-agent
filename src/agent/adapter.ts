@@ -426,8 +426,9 @@ export function useItineraryAgent(): ItineraryAgent {
 
       const found = await fillMealGapsNearDays(
         candidates,
-        dates.length,
+        dates,
         current.restaurants,
+        trip.meals,
         createNearbyFinder(dates),
       );
       if (found.length === 0) return current.restaurants;
