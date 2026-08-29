@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { refinePlanRoutes } from "@/routing/refinePlan";
 import { RoutingUnavailable, type ResolvedRoute } from "@/routing/googleRoutes";
+import { parseClock } from "@/planner/time";
 import type { Attraction, Plan, Restaurant, TripRequest } from "@/types/workspace";
 
 const DATES = ["2026-09-12"];
@@ -131,6 +132,20 @@ describe("keeping the schedule true to the measured legs", () => {
 
   test("says so when the measured legs push the day past its end", async () => {
     const result = await refinePlanRoutes(plan(), { trip, attractions, restaurants }, slow(400));
+    expect(result.degraded).toMatch(/past the end of the day/i);
+  });
+
+  test("never writes a clock the app cannot read back", async () => {
+    // 400-minute legs run the last stop past midnight, and there is no hour of
+    // this day left to move it to. A "24:20" would fail the app's own parser
+    // and reach the traveller as a time that does not exist.
+    const result = await refinePlanRoutes(plan(), { trip, attractions, restaurants }, slow(400));
+    for (const day of result.plan.days) {
+      for (const item of day.items) {
+        expect(parseClock(item.startTime), `${item.refId} starts at ${item.startTime}`).not.toBeNull();
+        expect(parseClock(item.endTime), `${item.refId} ends at ${item.endTime}`).not.toBeNull();
+      }
+    }
     expect(result.degraded).toMatch(/past the end of the day/i);
   });
 

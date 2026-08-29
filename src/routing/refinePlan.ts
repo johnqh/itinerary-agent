@@ -108,6 +108,9 @@ function placesFor(day: PlanDay, context: RefineContext): Map<string, { name: st
  */
 const sessionResolver: RouteResolver = createCachedResolver(resolveRoute);
 
+/** 23:59. The clock grammar has no way to write a later minute of the same day. */
+const LAST_MINUTE_OF_DAY = 23 * 60 + 59;
+
 export async function refinePlanRoutes(
   plan: Plan,
   context: RefineContext,
@@ -167,8 +170,15 @@ export async function refinePlanRoutes(
           infeasible.push(`${label} is closed by the time the measured journey arrives`);
         }
 
+        // Past midnight there is no hour of this day left to move the stop
+        // into, and the clock grammar has no way to write one: "24:20" fails
+        // the app's own parser and would reach the traveller as a time that
+        // does not exist. The stop keeps what the scheduler gave it, and the
+        // day is already reported as running past its end — a schedule visibly
+        // beyond repair beats a schedule quietly outside its own contract.
+        const writable = nextStart <= LAST_MINUTE_OF_DAY && nextEnd <= LAST_MINUTE_OF_DAY;
         items.push(
-          nextStart === start
+          nextStart === start || !writable
             ? item
             : { ...item, startTime: toClock(nextStart), endTime: toClock(nextEnd) },
         );
