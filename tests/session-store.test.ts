@@ -5,7 +5,7 @@ import {
   saveSession,
   type StorageLike,
 } from "@/agent/sessionStore";
-import type { Workspace } from "@/types/workspace";
+import type { Attraction, Plan, Restaurant, Workspace } from "@/types/workspace";
 
 /**
  * A trip is long-lived work. Losing a rated candidate list to a page reload is
@@ -57,6 +57,70 @@ const workspace: Workspace = {
   degraded: { discovery: null, routing: null, optimizer: null, meals: null, map: null },
 };
 
+const attraction: Attraction = {
+  id: "sensoji",
+  name: "Sensō-ji",
+  category: "temple",
+  location: { lat: 35.7148, lng: 139.7967 },
+  description: "Tokyo's oldest temple.",
+  hoursByDate: { "2026-09-12": { status: "open", open: "06:00", close: "17:00" } },
+  estimatedVisitMinutes: 75,
+  ticketRequired: false,
+  photoUrls: [],
+  sources: [{ url: "https://www.senso-ji.jp/" }],
+  confidence: 0.9,
+};
+
+const restaurant: Restaurant = {
+  id: "daikokuya",
+  name: "Daikokuya",
+  cuisine: ["tempura"],
+  location: { lat: 35.7118, lng: 139.7955 },
+  hoursByDate: { "2026-09-12": { status: "open", open: "11:00", close: "20:30" } },
+  sources: [{ url: "https://tempura.co.jp/" }],
+  confidence: 0.8,
+};
+
+const plan: Plan = {
+  id: "plan-1",
+  version: 2,
+  days: [
+    {
+      date: "2026-09-12",
+      isCarDay: false,
+      items: [
+        { kind: "attraction", refId: "sensoji", startTime: "09:00", endTime: "10:15" },
+      ],
+      legs: [],
+      summary: "Asakusa morning.",
+    },
+  ],
+  excludedAttractionIds: [],
+  summary: "One day in Tokyo.",
+  diagnostics: {
+    considered: 1,
+    included: 1,
+    excluded: [],
+    unplacedMeals: [],
+    routeCalls: 0,
+    cacheHits: 0,
+    transitAccepted: 0,
+    transitRejected: 0,
+    attractionMinutes: 75,
+    transportMinutes: 0,
+    score: 3,
+  },
+};
+
+/** What a traveller who has actually reached a plan has in hand. */
+const plannedWorkspace: Workspace = {
+  ...workspace,
+  phase: "ready",
+  attractions: [attraction],
+  restaurants: [restaurant],
+  plan,
+};
+
 const NOW = new Date("2026-09-01T12:00:00Z");
 
 describe("round trip", () => {
@@ -74,6 +138,16 @@ describe("round trip", () => {
     const storage = memoryStorage();
     saveSession(storage, workspace, { live: false, now: NOW });
     expect(loadSession(storage, NOW)?.phase).toBe("rating");
+  });
+
+  test("restores the candidates and the plan a traveller had reached", () => {
+    const storage = memoryStorage();
+    saveSession(storage, plannedWorkspace, { live: true, now: NOW });
+    const restored = loadSession(storage, NOW);
+    expect(restored?.phase).toBe("ready");
+    expect(restored?.attractions).toEqual([attraction]);
+    expect(restored?.restaurants).toEqual([restaurant]);
+    expect(restored?.plan).toEqual(plan);
   });
 
   test("saves nothing for a workspace with no trip yet", () => {
@@ -116,6 +190,66 @@ describe("refusing unusable records", () => {
     saveSession(storage, workspace, { live: false, now: NOW });
     const muchLater = new Date("2026-10-15T12:00:00Z");
     expect(loadSession(storage, muchLater)).toBeNull();
+  });
+});
+
+/**
+ * A restored record is handed straight to the renderer and the planner. Storage
+ * is writable by anything on the origin and survives across releases, so a
+ * record that does not hold real places, a real plan, or real ratings has to be
+ * refused here rather than crash the first paint or quietly re-plan the trip
+ * against values the traveller never chose.
+ */
+describe("refusing records that would crash or mislead the workspace", () => {
+  function tamper(mutate: (raw: Record<string, never>) => void): StorageLike {
+    const storage = memoryStorage();
+    saveSession(storage, workspace, { live: false, now: NOW });
+    const raw = JSON.parse(storage.getItem("itinerary-agent.session")!);
+    mutate(raw);
+    storage.setItem("itinerary-agent.session", JSON.stringify(raw));
+    return storage;
+  }
+
+  test("rejects a record whose restaurants are not restaurants", () => {
+    const storage = tamper((raw) => {
+      raw.restaurants = [null] as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose attractions are missing their fields", () => {
+    const storage = tamper((raw) => {
+      raw.attractions = [{ id: "sensoji" }] as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose plan has no days", () => {
+    const storage = tamper((raw) => {
+      raw.plan = { id: "p1", version: 1 } as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose ratings fall outside the rating scale", () => {
+    const storage = tamper((raw) => {
+      raw.ratings = { sensoji: 9 } as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose phase is not a phase", () => {
+    const storage = tamper((raw) => {
+      raw.phase = "elsewhere" as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record with no rental-car choice rather than guessing one", () => {
+    const storage = tamper((raw) => {
+      delete (raw.trip as unknown as Record<string, unknown>).hasRentalCar;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
   });
 });
 
