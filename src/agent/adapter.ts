@@ -102,6 +102,27 @@ export function useItineraryAgent(): ItineraryAgent {
   /** Whether this trip opted into agent-run research and scheduling. */
   const liveRef = useRef(restored.live);
 
+  /**
+   * Applies an async result only if it still belongs to the trip on screen.
+   *
+   * Research and scheduling take minutes, and "New trip" lets the traveller
+   * replace the trip while one is still running. Without this, whichever run
+   * finished last wrote its candidates, its session id and its provenance
+   * notice into whatever trip was showing — a Kyoto header over Tokyo
+   * candidates, under a banner claiming the web had been researched for a city
+   * this trip never asked about.
+   *
+   * The trip object itself is the run's identity: `createTrip` stores exactly
+   * the object it was handed and `reset` stores null, so a run whose trip is no
+   * longer the current one is a run nobody is waiting for.
+   */
+  const commit = useCallback(
+    (trip: TripRequest, update: (current: Workspace) => Workspace) => {
+      setWorkspace((current) => (current.trip === trip ? update(current) : current));
+    },
+    [],
+  );
+
   // Persist after every settled change so a reload rejoins the trip. Runs in
   // an effect rather than inside the state updaters, which must stay pure.
   useEffect(() => {
@@ -148,14 +169,14 @@ export function useItineraryAgent(): ItineraryAgent {
       for (const [index, label] of steps.entries()) {
         await delay(perStep);
         const done = index + 1;
-        setWorkspace((current) =>
+        commit(trip, (current) =>
           current.phase === "discovering"
             ? { ...current, progress: { label, done, total: steps.length } }
             : current,
         );
       }
 
-      setWorkspace((current) => ({
+      commit(trip, (current) => ({
         ...current,
         phase: "rating",
         attractions: seedAttractions(dates),
@@ -167,7 +188,7 @@ export function useItineraryAgent(): ItineraryAgent {
         },
       }));
     },
-    [],
+    [commit],
   );
 
   const runDiscovery = useCallback(
@@ -178,7 +199,7 @@ export function useItineraryAgent(): ItineraryAgent {
       // Nothing about that is hidden: the banner says which one produced the
       // candidates on screen.
       if (!options?.live) {
-        setWorkspace((current) => ({ ...current, phase: "discovering" }));
+        commit(trip, (current) => ({ ...current, phase: "discovering" }));
         await runSeedDiscovery(
           trip,
           "Live web research is switched off for this trip.",
@@ -186,7 +207,7 @@ export function useItineraryAgent(): ItineraryAgent {
         return;
       }
 
-      setWorkspace((current) => ({
+      commit(trip, (current) => ({
         ...current,
         phase: "discovering",
         progress: { label: "Checking research tools", done: 0, total: 1 },
@@ -203,7 +224,7 @@ export function useItineraryAgent(): ItineraryAgent {
           trip,
           dates,
           onProgress: (progress) =>
-            setWorkspace((current) =>
+            commit(trip, (current) =>
               current.phase === "discovering" ? { ...current, progress } : current,
             ),
         });
@@ -218,7 +239,7 @@ export function useItineraryAgent(): ItineraryAgent {
           return;
         }
 
-        setWorkspace((current) => ({
+        commit(trip, (current) => ({
           ...current,
           phase: "rating",
           sessionId: outcome.sessionId,
@@ -244,7 +265,7 @@ export function useItineraryAgent(): ItineraryAgent {
         );
       }
     },
-    [runSeedDiscovery],
+    [commit, runSeedDiscovery],
   );
 
   const discover = useCallback(async () => {
@@ -278,45 +299,48 @@ export function useItineraryAgent(): ItineraryAgent {
 
   /** Schedules with the local greedy builder, saying why if it was a fallback. */
   const planLocally = useCallback(
-    async (reason?: string) => {
+    async (trip: TripRequest, reason?: string) => {
       await delay(STEP_DELAY_MS);
-      setWorkspace((current) => {
+      commit(trip, (current) => {
         const next = runPlan(current);
         return reason
           ? { ...next, degraded: { ...next.degraded, optimizer: reason } }
           : next;
       });
     },
-    [runPlan],
+    [commit, runPlan],
   );
 
   const generatePlan = useCallback(async () => {
-    setWorkspace((current) => ({
+    const trip = workspaceRef.current.trip;
+    if (!trip) return;
+
+    commit(trip, (current) => ({
       ...current,
       phase: "planning",
       progress: { label: "Scheduling your days", done: 0, total: 1 },
     }));
 
     const current = workspaceRef.current;
-    if (!liveRef.current || !current.trip) {
-      await planLocally();
+    if (!liveRef.current) {
+      await planLocally(trip);
       return;
     }
 
     try {
       const outcome = await runSandboxOptimizer({
-        trip: current.trip,
-        dates: tripDates(current.trip),
+        trip,
+        dates: tripDates(trip),
         attractions: current.attractions,
         restaurants: current.restaurants,
         ratings: current.ratings,
         onProgress: (label) =>
-          setWorkspace((w) =>
+          commit(trip, (w) =>
             w.phase === "planning" ? { ...w, progress: { label, done: 0, total: 1 } } : w,
           ),
       });
 
-      setWorkspace((w) => ({
+      commit(trip, (w) => ({
         ...w,
         phase: "ready",
         progress: null,
@@ -339,9 +363,9 @@ export function useItineraryAgent(): ItineraryAgent {
           : `The agent could not schedule this trip, so the built-in planner did. ${
               error instanceof Error ? error.message : ""
             }`;
-      await planLocally(reason.trim());
+      await planLocally(trip, reason.trim());
     }
-  }, [planLocally]);
+  }, [commit, planLocally]);
 
   const submitRatings = useCallback(async () => {
     await generatePlan();
