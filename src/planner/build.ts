@@ -14,6 +14,7 @@ import type {
   UnplacedMeal,
 } from "@/types/workspace";
 import { centroid, clusterByGeography, estimateTravel } from "@/planner/geo";
+import { MEAL_DURATIONS, matchesCuisine } from "@/planner/meals";
 import { excludeReason, scoreAttraction } from "@/planner/scoring";
 import { selectMode } from "@/planner/transport";
 import {
@@ -43,8 +44,6 @@ export interface BuildPlanInput {
   restaurants: Restaurant[];
   ratings: Record<string, Rating>;
 }
-
-const MEAL_DURATIONS: Record<MealKind, number> = { lunch: 60, dinner: 75 };
 
 const MAX_ATTRACTIONS_PER_DAY: Record<Pace, number> = {
   relaxed: 4,
@@ -540,12 +539,6 @@ interface PickRestaurantInput {
   window: Segment;
   meals: TripRequest["meals"];
   excludeIds: string[];
-}
-
-function matchesCuisine(restaurant: Restaurant, cuisines: string[]): boolean {
-  return restaurant.cuisine.some((c) =>
-    cuisines.some((want) => c.toLowerCase() === want.toLowerCase()),
-  );
 }
 
 function nearest(pool: Restaurant[], near: LatLng): Restaurant {

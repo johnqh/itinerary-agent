@@ -25,14 +25,20 @@ export function createClient(): TrueForge {
 }
 
 /**
- * The two harness resources a live discovery turn names by hand.
+ * The harness resources the agent turns name by hand.
  *
- * They live here rather than in the discovery session so the preflight and the
- * turn cannot drift apart: checking that "a model exists" told the traveller
- * live research was available, opened the checkbox, and then spent minutes of
- * their time on a turn that could only fail.
+ * They live here rather than in each session so the preflight and the turns
+ * cannot drift apart: checking that "a model exists" told the traveller live
+ * research was available, opened the checkbox, and then spent minutes of their
+ * time on a turn that could only fail.
+ *
+ * Both jobs are bounded — extracting facts from retrieved pages, and writing a
+ * solver against rules supplied in the brief — rather than open-ended
+ * reasoning. A scheduling run iterates several times, so cost per pass decides
+ * whether it can iterate at all.
  */
-export const ORCHESTRATOR_MODEL = "openai/gpt-5-6-sol";
+export const ORCHESTRATOR_MODEL = "openai/gpt-5-4-mini";
+export const OPTIMIZER_MODEL = "openai/gpt-5-4-mini";
 export const RESEARCH_MCP_SERVER = "bright-data";
 
 const SETUP_HINT = "Run `bun run setup:harness` to register it.";
