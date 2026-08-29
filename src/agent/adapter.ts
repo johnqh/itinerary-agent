@@ -82,6 +82,9 @@ function initialWorkspace(): { workspace: Workspace; live: boolean } {
       restaurants: stored.restaurants,
       ratings: stored.ratings,
       plan: stored.plan,
+      // The restored candidates and plan carry their provenance with them; a
+      // reload is not a chance to present a degraded run as a clean one.
+      degraded: stored.degraded,
     },
   };
 }

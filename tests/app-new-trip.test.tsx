@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 /**
  * "New trip" has to discard the trip, not just the itinerary.
@@ -62,5 +62,26 @@ describe("starting a new trip", () => {
 
     expect(screen.queryByLabelText("Close details")).toBeNull();
     expect(screen.queryByText(TILE_NOTICE)).toBeNull();
+  });
+});
+
+/**
+ * Section 4.8 again, from the other side: a reload must not launder a degraded
+ * run into a clean-looking one. The candidates that come back are the offline
+ * seed dataset, so the screen has to keep saying so.
+ */
+describe("returning to a trip", () => {
+  test("still names the degraded modes the restored trip was built under", async () => {
+    render(<App />);
+    await planATrip();
+    const notice = screen.getByText(/Offline seed dataset/);
+    expect(notice).toBeDefined();
+
+    // A page reload: the same storage, a fresh mount.
+    cleanup();
+    render(<App />);
+
+    expect(await screen.findByText(/Picked up where you left off/)).toBeDefined();
+    expect(screen.getByText(/Offline seed dataset/).textContent).toBe(notice.textContent);
   });
 });

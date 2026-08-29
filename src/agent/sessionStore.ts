@@ -1,5 +1,6 @@
 import type {
   Attraction,
+  DegradedState,
   Phase,
   Plan,
   Rating,
@@ -45,6 +46,15 @@ export interface StoredSession {
   attractions: Attraction[];
   restaurants: Restaurant[];
   plan: Plan | null;
+  /**
+   * Which degraded modes the restored candidates and plan were produced under.
+   *
+   * Stored because section 4.8 admits no silent degradation, and a reload is
+   * not an exception: these notices describe the itinerary that comes back, so
+   * losing them would present a seed-data plan of straight-line estimates as
+   * though it were a researched one.
+   */
+  degraded: DegradedState;
 }
 
 export interface SaveOptions {
@@ -244,6 +254,15 @@ function isRatings(value: unknown): value is Record<string, Rating> {
   );
 }
 
+const DEGRADED_KEYS = ["discovery", "routing", "optimizer", "meals", "map"] as const;
+
+function isDegraded(value: unknown): value is DegradedState {
+  return (
+    isRecord(value) &&
+    DEGRADED_KEYS.every((k) => value[k] === null || typeof value[k] === "string")
+  );
+}
+
 function isPhase(value: unknown): value is Phase {
   return (
     value === "setup" ||
@@ -272,6 +291,7 @@ export function saveSession(
     attractions: workspace.attractions,
     restaurants: workspace.restaurants,
     plan: workspace.plan,
+    degraded: workspace.degraded,
   };
 
   try {
@@ -315,6 +335,7 @@ export function loadSession(storage: StorageLike, now = new Date()): StoredSessi
   // actionable.
   if (!isPhase(parsed.phase)) return null;
   if (!isRatings(parsed.ratings)) return null;
+  if (!isDegraded(parsed.degraded)) return null;
 
   if (!Array.isArray(parsed.attractions) || !parsed.attractions.every(isAttraction)) {
     return null;
@@ -342,6 +363,10 @@ export function loadSession(storage: StorageLike, now = new Date()): StoredSessi
     attractions: parsed.attractions,
     restaurants: parsed.restaurants,
     plan,
+    // The map notice is about this page's tile session, not the trip, so it is
+    // dropped: a restored map may well load. The adapter never sets it, but a
+    // record from a build that did should not outlive the load that failed.
+    degraded: { ...parsed.degraded, map: null },
   };
 }
 

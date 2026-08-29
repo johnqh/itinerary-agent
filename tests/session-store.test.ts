@@ -150,6 +150,35 @@ describe("round trip", () => {
     expect(restored?.plan).toEqual(plan);
   });
 
+  /**
+   * Section 4.8: a degraded mode is always named. The notices describe the
+   * candidates and the plan being restored, so dropping them would show a
+   * reloaded traveller a seed-data itinerary of straight-line estimates with
+   * nothing on screen saying so — silent degradation by way of a refresh.
+   */
+  test("restores the degraded modes the plan on screen was built under", () => {
+    const storage = memoryStorage();
+    saveSession(
+      storage,
+      {
+        ...plannedWorkspace,
+        degraded: {
+          discovery: "Offline seed dataset for Tokyo, Japan.",
+          routing: "Travel times are straight-line estimates.",
+          optimizer: "Scheduled by the local greedy builder.",
+          meals: null,
+          map: null,
+        },
+      },
+      { live: false, now: NOW },
+    );
+    const restored = loadSession(storage, NOW);
+    expect(restored?.degraded.discovery).toBe("Offline seed dataset for Tokyo, Japan.");
+    expect(restored?.degraded.routing).toBe("Travel times are straight-line estimates.");
+    expect(restored?.degraded.optimizer).toBe("Scheduled by the local greedy builder.");
+    expect(restored?.degraded.meals).toBeNull();
+  });
+
   test("saves nothing for a workspace with no trip yet", () => {
     const storage = memoryStorage();
     saveSession(storage, { ...workspace, trip: null }, { live: false, now: NOW });
@@ -241,6 +270,13 @@ describe("refusing records that would crash or mislead the workspace", () => {
   test("rejects a record whose phase is not a phase", () => {
     const storage = tamper((raw) => {
       raw.phase = "elsewhere" as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose degraded notices are not notices", () => {
+    const storage = tamper((raw) => {
+      raw.degraded = { discovery: 12 } as never;
     });
     expect(loadSession(storage, NOW)).toBeNull();
   });
