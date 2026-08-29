@@ -84,6 +84,9 @@ function initialWorkspace(): { workspace: Workspace; live: boolean } {
       restaurants: stored.restaurants,
       ratings: stored.ratings,
       plan: stored.plan,
+      // The restored candidates and plan carry their provenance with them; a
+      // reload is not a chance to present a degraded run as a clean one.
+      degraded: stored.degraded,
     },
   };
 }
@@ -100,6 +103,27 @@ export function useItineraryAgent(): ItineraryAgent {
 
   /** Whether this trip opted into agent-run research and scheduling. */
   const liveRef = useRef(restored.live);
+
+  /**
+   * Applies an async result only if it still belongs to the trip on screen.
+   *
+   * Research and scheduling take minutes, and "New trip" lets the traveller
+   * replace the trip while one is still running. Without this, whichever run
+   * finished last wrote its candidates, its session id and its provenance
+   * notice into whatever trip was showing — a Kyoto header over Tokyo
+   * candidates, under a banner claiming the web had been researched for a city
+   * this trip never asked about.
+   *
+   * The trip object itself is the run's identity: `createTrip` stores exactly
+   * the object it was handed and `reset` stores null, so a run whose trip is no
+   * longer the current one is a run nobody is waiting for.
+   */
+  const commit = useCallback(
+    (trip: TripRequest, update: (current: Workspace) => Workspace) => {
+      setWorkspace((current) => (current.trip === trip ? update(current) : current));
+    },
+    [],
+  );
 
   // Persist after every settled change so a reload rejoins the trip. Runs in
   // an effect rather than inside the state updaters, which must stay pure.
@@ -147,14 +171,14 @@ export function useItineraryAgent(): ItineraryAgent {
       for (const [index, label] of steps.entries()) {
         await delay(perStep);
         const done = index + 1;
-        setWorkspace((current) =>
+        commit(trip, (current) =>
           current.phase === "discovering"
             ? { ...current, progress: { label, done, total: steps.length } }
             : current,
         );
       }
 
-      setWorkspace((current) => ({
+      commit(trip, (current) => ({
         ...current,
         phase: "rating",
         attractions: dataset.attractions(dates),
@@ -163,7 +187,7 @@ export function useItineraryAgent(): ItineraryAgent {
         degraded: { ...current.degraded, discovery: reason },
       }));
     },
-    [],
+    [commit],
   );
 
   /**
@@ -192,7 +216,7 @@ export function useItineraryAgent(): ItineraryAgent {
       const dates = tripDates(trip);
       const dataset = datasetFor(trip.destination);
 
-      setWorkspace((current) => ({
+      commit(trip, (current) => ({
         ...current,
         phase: "discovering",
         progress: { label: "Looking for candidates", done: 0, total: 1 },
@@ -220,7 +244,7 @@ export function useItineraryAgent(): ItineraryAgent {
           trip,
           dates,
           onProgress: (progress) =>
-            setWorkspace((current) =>
+            commit(trip, (current) =>
               current.phase === "discovering" ? { ...current, progress } : current,
             ),
         });
@@ -230,7 +254,7 @@ export function useItineraryAgent(): ItineraryAgent {
           return;
         }
 
-        setWorkspace((current) => ({
+        commit(trip, (current) => ({
           ...current,
           phase: "rating",
           sessionId: outcome.sessionId,
@@ -253,7 +277,7 @@ export function useItineraryAgent(): ItineraryAgent {
         );
       }
     },
-    [runOfflineDiscovery, reportDiscoveryFailure],
+    [commit, runOfflineDiscovery, reportDiscoveryFailure],
   );
 
   const discover = useCallback(async () => {
@@ -338,50 +362,51 @@ export function useItineraryAgent(): ItineraryAgent {
 
   /** Schedules with the local greedy builder, returning what it produced. */
   const planLocally = useCallback(
-    async (reason?: string): Promise<Plan | null> => {
+    async (trip: TripRequest, reason?: string): Promise<Plan | null> => {
       await delay(STEP_DELAY_MS);
       const current = workspaceRef.current;
       if (!current.trip) return null;
 
       const next = runPlan(current);
-      setWorkspace(() =>
+      commit(trip, () =>
         reason ? { ...next, degraded: { ...next.degraded, optimizer: reason } } : next,
       );
       return next.plan;
     },
-    [runPlan],
+    [commit, runPlan],
   );
 
   const generatePlan = useCallback(async () => {
-    setWorkspace((current) => ({
+    const trip = workspaceRef.current.trip;
+    if (!trip) return;
+
+    commit(trip, (current) => ({
       ...current,
       phase: "planning",
       progress: { label: "Scheduling your days", done: 0, total: 1 },
     }));
 
     const current = workspaceRef.current;
-    if (!current.trip) return;
-
     if (!liveRef.current) {
-      const built = await planLocally();
-      if (built) await routePlan(built, current.trip, current.attractions, current.restaurants);
+      const built = await planLocally(trip);
+      if (built) await routePlan(built, trip, current.attractions, current.restaurants);
       return;
     }
 
     try {
       const outcome = await runSandboxOptimizer({
-        trip: current.trip,
-        dates: tripDates(current.trip),
+        trip,
+        dates: tripDates(trip),
         attractions: current.attractions,
         restaurants: current.restaurants,
         ratings: current.ratings,
         onProgress: (label) =>
-          setWorkspace((w) =>
+          commit(trip, (w) =>
             w.phase === "planning" ? { ...w, progress: { label, done: 0, total: 1 } } : w,
           ),
       });
 
-      setWorkspace((w) => ({
+      commit(trip, (w) => ({
         ...w,
         phase: "ready",
         progress: null,
@@ -395,7 +420,7 @@ export function useItineraryAgent(): ItineraryAgent {
           meals: w.trip ? mealNotice(outcome.plan, w.trip.meals) : null,
         },
       }));
-      await routePlan(outcome.plan, current.trip, current.attractions, current.restaurants);
+      await routePlan(outcome.plan, trip, current.attractions, current.restaurants);
     } catch (error) {
       // A rejected schedule is not a crash: the deterministic planner answers
       // instead, and the reason is shown rather than swallowed.
@@ -405,10 +430,10 @@ export function useItineraryAgent(): ItineraryAgent {
           : `The agent could not schedule this trip, so the built-in planner did. ${
               error instanceof Error ? error.message : ""
             }`;
-      const built = await planLocally(reason.trim());
-      if (built) await routePlan(built, current.trip, current.attractions, current.restaurants);
+      const built = await planLocally(trip, reason.trim());
+      if (built) await routePlan(built, trip, current.attractions, current.restaurants);
     }
-  }, [planLocally, routePlan]);
+  }, [commit, planLocally, routePlan]);
 
   const submitRatings = useCallback(async () => {
     await generatePlan();
