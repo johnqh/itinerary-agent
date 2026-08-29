@@ -38,7 +38,23 @@ export default defineConfig(({ mode }) => {
     },
   };
 
-  const proxy = { ...harnessProxy, ...routingProxy };
+  // Places is reached the same way, and for the same reason: the key is
+  // attached here, server-side, and never reaches the browser.
+  const placesProxy: Record<string, ProxyOptions> = {
+    "/places": {
+      target: "https://places.googleapis.com",
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/places/, ""),
+      configure: (proxy) => {
+        proxy.on("proxyReq", (proxyReq) => {
+          const key = env.GOOGLE_MAPS_API_KEY?.trim();
+          if (key) proxyReq.setHeader("X-Goog-Api-Key", key);
+        });
+      },
+    },
+  };
+
+  const proxy = { ...harnessProxy, ...routingProxy, ...placesProxy };
 
   return {
     plugins: [react()],

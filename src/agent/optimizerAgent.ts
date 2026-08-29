@@ -251,3 +251,35 @@ export function optimizerSchema(dates: string[]) {
     },
   };
 }
+
+/**
+ * What the scheduler is told when the validator refuses its answer.
+ *
+ * The solver iterates against its own objective and never learns the schedule
+ * was rejected, so left alone it reproduces the same mistake with different
+ * numbers. This closes that loop, in the same session, so its own solver code
+ * is still in front of it.
+ *
+ * The rule is named as well as the symptom. Given only "17 min into a 15 min
+ * gap", a model will widen that one gap; given the rule, it fixes the
+ * arithmetic that produced every such gap.
+ */
+export function rejectionMessage(violations: string[]): string {
+  const listed = violations.map((v) => `- ${v}`).join("\n");
+
+  return [
+    "That schedule was rejected. It breaks rules that make a day impossible to",
+    "follow, so it cannot be shown to the traveller:",
+    "",
+    listed,
+    "",
+    "Correct your solver and run it again — do not hand-edit the JSON, because",
+    "the same fault will return on the next day it schedules.",
+    "",
+    "The constraint broken most often is travel: the gap between two",
+    "consecutive stops must be at least the travel time between them. Reserve",
+    "the journey before you place the next stop, rather than placing stops and",
+    "hoping the gaps are wide enough. Re-check every rule before answering, not",
+    "only the ones listed above.",
+  ].join("\n");
+}

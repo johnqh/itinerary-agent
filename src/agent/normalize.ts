@@ -1,3 +1,4 @@
+import { isPlacePhotoUrl } from "@/routing/placePhotos";
 import type {
   Attraction,
   Hours,
@@ -132,6 +133,10 @@ const IMAGE_EXTENSIONS = /\.(?:jpe?g|png|webp|gif|avif)$/i;
 function readPhotoUrls(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
+    // A photo fetched from Places is served through this origin and has no
+    // file extension, so it is recognised by shape rather than by suffix.
+    if (typeof entry === "string" && isPlacePhotoUrl(entry)) return [entry];
+
     const url = readHttpUrl(entry);
     if (!url) return [];
     try {
