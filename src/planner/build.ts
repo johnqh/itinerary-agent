@@ -811,6 +811,7 @@ export function repickMeals(
     const onward = positions.get(following?.refId ?? "") ?? null;
     if (!before || !previous) {
       chosen.add(item.refId);
+      claimedToday.add(item.refId);
       return;
     }
 

@@ -223,4 +223,30 @@ describe("repickMeals across both meals of a day", () => {
     expect(result.items[1]!.refId).toBe("shared");
     expect(result.items[3]!.refId).not.toBe("shared");
   });
+
+  test("does not reuse a meal it could not repick for want of a stop before it", () => {
+    // A day whose morning filled nothing opens on lunch, so there is no stop to
+    // judge that meal against and it keeps what it was given. Dinner still has
+    // to know the table is taken.
+    const openingOnLunch: PlanItem[] = [
+      { kind: "meal", refId: "shared", meal: "lunch", startTime: "12:30", endTime: "13:30" },
+      { kind: "attraction", refId: "b", startTime: "14:00", endTime: "15:00" },
+      { kind: "meal", refId: "shared", meal: "dinner", startTime: "18:00", endTime: "19:15" },
+      { kind: "attraction", refId: "c", startTime: "20:00", endTime: "21:00" },
+    ];
+    const pool = [
+      restaurant("shared", 37.803, -122.4),
+      restaurant("spare", 37.8035, -122.4005),
+    ];
+    const result = repickMeals(
+      openingOnLunch,
+      pool,
+      new Map(twoMealPositions),
+      trip,
+      DATE,
+      [],
+    );
+    expect(result.items[0]!.refId).toBe("shared");
+    expect(result.items[2]!.refId).toBe("spare");
+  });
 });
