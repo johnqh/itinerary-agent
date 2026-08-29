@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useItineraryAgent } from "@/agent/adapter";
 import { harnessStatus } from "@/agent/client";
 import { tripDates as datesForTrip } from "@/planner/build";
@@ -37,6 +37,16 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  // The panel keeps its scroll position across phases, so a fresh plan would
+  // otherwise appear above wherever the traveller had scrolled to while rating.
+  const panelRef = useRef<HTMLElement | null>(null);
+  const planVersion = workspace.plan?.version ?? null;
+  useEffect(() => {
+    // `scrollTo` is absent in some environments (jsdom among them), and
+    // failing to scroll must never take the workspace down with it.
+    if (planVersion !== null) panelRef.current?.scrollTo?.({ top: 0 });
+  }, [planVersion]);
 
   const dates = useMemo(
     () => (workspace.trip ? datesForTrip(workspace.trip) : []),
@@ -199,15 +209,20 @@ export default function App() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <section className="flex w-[27rem] shrink-0 flex-col gap-3 overflow-y-auto border-r border-hairline bg-canvas p-3">
+        <section
+          ref={panelRef}
+          className="flex w-[27rem] shrink-0 flex-col gap-3 overflow-y-auto border-r border-hairline bg-canvas p-3"
+        >
           {plan && (
             <>
+              <div className="sticky -top-3 z-10 -mx-3 -mt-3 border-b border-hairline bg-canvas px-3 pb-2 pt-3">
               <DayTabs
                 dates={plan.days.map((d) => d.date)}
                 activeIndex={Math.min(activeDayIndex, plan.days.length - 1)}
                 onSelect={setActiveDayIndex}
               />
               <Legend />
+              </div>
               {day && (
                 <Timeline
                   day={day}

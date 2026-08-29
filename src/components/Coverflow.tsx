@@ -33,6 +33,13 @@ export default function Coverflow({ images, alt }: Props) {
   const usable = images.filter((url) => !broken.has(url));
   const lastIndex = usable.length - 1;
 
+  // A different place means a different gallery: start at its first photo
+  // rather than at whatever index the previous place happened to be showing.
+  const identity = images.join("|");
+  useEffect(() => {
+    setActive(0);
+  }, [identity]);
+
   useEffect(() => {
     if (active > lastIndex) setActive(0);
   }, [lastIndex, active]);

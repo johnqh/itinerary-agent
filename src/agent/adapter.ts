@@ -163,7 +163,7 @@ export function useItineraryAgent(): ItineraryAgent {
    * so the two paths do not feel like different products.
    */
   const runOfflineDiscovery = useCallback(
-    async (trip: TripRequest, dataset: OfflineDataset, reason: string) => {
+    async (trip: TripRequest, dataset: OfflineDataset, reason: string | null) => {
       const dates = tripDates(trip);
       const steps = discoverySteps(dates);
       const perStep = Math.max(30, Math.round(DISCOVERY_RUN_MS / steps.length));
@@ -225,11 +225,11 @@ export function useItineraryAgent(): ItineraryAgent {
       // A covered city answers from its dataset. Research is for everywhere
       // else, where it is the only way to get real places at all.
       if (dataset) {
-        await runOfflineDiscovery(
-          trip,
-          dataset,
-          `Offline dataset for ${dataset.label}: hand-checked places, not retrieved just now, so this loads instantly.`,
-        );
+        // No notice for a covered city. A committed dataset is the designed
+        // path for these two, not a degradation of anything: the places are
+        // real, and the travel between them is routed live like anywhere else.
+        // Section 4.8 asks that fallbacks be named, and this is not one.
+        await runOfflineDiscovery(trip, dataset, null);
         return;
       }
 

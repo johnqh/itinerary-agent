@@ -83,14 +83,18 @@ describe("returning to a trip", () => {
   test("still names the degraded modes the restored trip was built under", async () => {
     render(<App />);
     await planATrip();
-    const notice = screen.getByText(/Offline dataset for/);
-    expect(notice).toBeDefined();
+
+    // A covered city raises no notice of its own — a committed dataset is the
+    // designed path, not a fallback — so the mode under test is the planner:
+    // this schedule came from the greedy builder, not the sandboxed one.
+    fireEvent.click(screen.getByRole("button", { name: "Plan these days" }));
+    const notice = await screen.findByText(/greedy builder/, {}, { timeout: 5000 });
 
     // A page reload: the same storage, a fresh mount.
     cleanup();
     render(<App />);
 
     expect(await screen.findByText(/Picked up where you left off/)).toBeDefined();
-    expect(screen.getByText(/Offline dataset for/).textContent).toBe(notice.textContent);
+    expect((await screen.findByText(/greedy builder/)).textContent).toBe(notice.textContent);
   });
 });
