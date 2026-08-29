@@ -70,7 +70,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Free",
     ticketRequired: false,
     
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Painted_Ladies_San_Francisco_January_2013_panorama_2.jpg/1280px-Painted_Ladies_San_Francisco_January_2013_panorama_2.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Haight_Ashbury11.JPG/500px-Haight_Ashbury11.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Imm027.jpg/1280px-Imm027.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/4/48/Queen_Anne_House.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail_unscaled"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Painted_Ladies_San_Francisco_January_2013_panorama_2.jpg/1280px-Painted_Ladies_San_Francisco_January_2013_panorama_2.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Imm027.jpg/1280px-Imm027.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "golden-gate-park",
@@ -80,7 +80,10 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     lng: -122.4862,
     description: "A park larger than Central Park, running from the Haight to the ocean.",
     practicalNotes: "Too big to cross on foot casually. JFK Drive is car-free on weekends.",
-    hours: { open: "05:00", close: "24:00" },
+    // Midnight is written as the clock the app can parse. A close at or before
+    // the open belongs to the following day, so 05:00–00:00 is the full
+    // nineteen hours the park is actually open, not an empty interval.
+    hours: { open: "05:00", close: "00:00" },
     visitMinutes: 75,
     costSummary: "Free",
     ticketRequired: false,
@@ -130,7 +133,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Free to browse",
     ticketRequired: false,
     
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Ferry_Building_San_Francisco_from_Hyatt_Regency_with_R-Evolution_and_Bay_Bridge_2026_dllu.jpg/1280px-Ferry_Building_San_Francisco_from_Hyatt_Regency_with_R-Evolution_and_Bay_Bridge_2026_dllu.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/%22UNION_DEPOT_AND_FERRY_HOUSE%22_map_detail-_Sanborn_Fire_Insurance_Map_from_San_Francisco%2C_San_Francisco_County%2C_California._LOC_sanborn00813_008-4_%28cropped%29.jpg/1280px-%22UNION_DEPOT_AND_FERRY_HOUSE%22_map_detail-_Sanborn_Fire_Insurance_Map_from_San_Francisco%2C_San_Francisco_County%2C_California._LOC_sanborn00813_008-4_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/San_Francisco_Ferry_Building_%28cropped%29.jpg/1280px-San_Francisco_Ferry_Building_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Second_floor_of_the_Ferry_Building.jpg/1280px-Second_floor_of_the_Ferry_Building.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Ferry_Building_San_Francisco_from_Hyatt_Regency_with_R-Evolution_and_Bay_Bridge_2026_dllu.jpg/1280px-Ferry_Building_San_Francisco_from_Hyatt_Regency_with_R-Evolution_and_Bay_Bridge_2026_dllu.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/San_Francisco_Ferry_Building_%28cropped%29.jpg/1280px-San_Francisco_Ferry_Building_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Second_floor_of_the_Ferry_Building.jpg/1280px-Second_floor_of_the_Ferry_Building.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "chinatown-sf",

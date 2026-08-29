@@ -109,12 +109,25 @@ export interface RouteRequest {
   from: LatLng;
   to: LatLng;
   mode: TransportMode;
+  /**
+   * When the traveller actually makes this journey, as an RFC 3339 UTC
+   * instant. Only transit uses it, and only when the itinerary could supply
+   * one — see `departureInstant`.
+   */
+  departureTime?: string;
 }
 
-/** Rounded so nearby requests share a cache entry. ~11 m at 4 decimals. */
-export function cacheKey({ from, to, mode }: RouteRequest): string {
+/**
+ * Rounded so nearby requests share a cache entry. ~11 m at 4 decimals.
+ *
+ * The departure is part of the key because it is part of the question: the
+ * same two stops at 07:00 and at 23:00 are different journeys, and reusing one
+ * answer for the other would report a line that is not running.
+ */
+export function cacheKey({ from, to, mode, departureTime }: RouteRequest): string {
   const r = (n: number) => n.toFixed(4);
-  return `${mode}:${r(from.lat)},${r(from.lng)}->${r(to.lat)},${r(to.lng)}`;
+  const at = departureTime ? `@${departureTime}` : "";
+  return `${mode}:${r(from.lat)},${r(from.lng)}->${r(to.lat)},${r(to.lng)}${at}`;
 }
 
 export class RoutingUnavailable extends Error {
@@ -140,9 +153,16 @@ export async function resolveRoute(request: RouteRequest): Promise<ResolvedRoute
       destination: { location: { latLng: { latitude: request.to.lat, longitude: request.to.lng } } },
       travelMode: TRAVEL_MODE[request.mode],
       computeAlternativeRoutes: false,
-      // Traffic-aware routing is deliberately not requested. It is billed at
-      // the higher tier, and a trip planned weeks ahead gains nothing from
-      // today's congestion.
+      // Google evaluates a request at the moment it arrives unless told
+      // otherwise, so without this a trip planned for the spring came back
+      // described by the trains running this afternoon — the wrong lines, the
+      // wrong changes, and sometimes a service that does not run that day at
+      // all. Transit only: a departure on a DRIVE request opts into
+      // traffic-aware routing, which is billed at the higher tier for an
+      // answer a trip planned weeks ahead cannot use.
+      ...(request.mode === "transit" && request.departureTime
+        ? { departureTime: request.departureTime }
+        : {}),
     }),
   });
 

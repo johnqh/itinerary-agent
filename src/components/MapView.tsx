@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { MODE_COLORS } from "@/lib/modes";
 import { categoryStyle, MEAL_STYLE } from "@/lib/categories";
+import { decodePolyline } from "@/routing/polyline";
 import type {
   Attraction,
   LatLng,
@@ -206,19 +207,26 @@ export default function MapView({
         ? `${leg.transitLines.join(" → ")} · ${leg.durationMinutes} min`
         : `${leg.mode} · ${leg.durationMinutes} min${leg.estimated ? " (estimated)" : ""}`;
 
-      L.polyline(
-        [
-          [from.lat, from.lng],
-          [to.lat, to.lng],
-        ],
-        {
-          color: MODE_COLORS[leg.mode],
-          weight: selected ? 8 : 5,
-          opacity: selected ? 1 : 0.8,
-          // A dashed line means the travel time is modelled, not measured.
-          dashArray: leg.estimated ? "6 7" : undefined,
-        },
-      )
+      // The provider answers with the shape of the journey, and the shape is
+      // what a traveller reads off a map: a straight line between two stops
+      // says they cross the water, when the route goes round by the bridge.
+      // Two endpoints is what an estimated leg has, and all it has.
+      const shape = decodePolyline(leg.polyline);
+      const path: L.LatLngExpression[] =
+        shape.length >= 2
+          ? shape.map((point) => [point.lat, point.lng])
+          : [
+              [from.lat, from.lng],
+              [to.lat, to.lng],
+            ];
+
+      L.polyline(path, {
+        color: MODE_COLORS[leg.mode],
+        weight: selected ? 8 : 5,
+        opacity: selected ? 1 : 0.8,
+        // A dashed line means the travel time is modelled, not measured.
+        dashArray: leg.estimated ? "6 7" : undefined,
+      })
         .bindTooltip(label, { sticky: true })
         .on("click", () => onSelect({ kind: "leg", date: day.date, fromIndex: leg.fromIndex }))
         .addTo(layer);

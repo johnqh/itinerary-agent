@@ -1,5 +1,11 @@
-import { describe, expect, test } from "vitest";
-import { parseRouteResponse, transferCountOf } from "@/routing/googleRoutes";
+import { describe, expect, test, vi } from "vitest";
+import {
+  cacheKey,
+  parseRouteResponse,
+  resolveRoute,
+  transferCountOf,
+} from "@/routing/googleRoutes";
+import type { LatLng } from "@/types/workspace";
 
 /**
  * Google's response is where real transit facts come from: line names and
@@ -116,5 +122,66 @@ describe("transfer counting", () => {
     const leg = parseRouteResponse(response({ legs: [{ steps: [{}] }] }), "walk");
     expect(leg?.transferCount).toBe(0);
     expect(leg?.transitLines).toEqual([]);
+  });
+});
+
+/**
+ * Google evaluates a transit request at the time it is made unless it is told
+ * otherwise, so a trip planned for next spring came back described by the
+ * trains running this afternoon. The itinerary's own departure has to travel
+ * with the request, or the line names on screen are about a day nobody is
+ * travelling on.
+ */
+describe("asking about the right moment", () => {
+  const from: LatLng = { lat: 35.71, lng: 139.796 };
+  const to: LatLng = { lat: 35.6595, lng: 139.7005 };
+
+  async function bodyOf(request: Parameters<typeof resolveRoute>[0]) {
+    let sent: RequestInit | undefined;
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      sent = init;
+      return new Response(JSON.stringify({ routes: [{ duration: "600s", distanceMeters: 100 }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await resolveRoute(request);
+      return JSON.parse(String(sent?.body)) as Record<string, unknown>;
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }
+
+  test("sends the itinerary's departure on a transit request", async () => {
+    const body = await bodyOf({
+      from,
+      to,
+      mode: "transit",
+      departureTime: "2027-04-02T00:30:00Z",
+    });
+    expect(body.departureTime).toBe("2027-04-02T00:30:00Z");
+  });
+
+  test("leaves a driving or walking request alone", async () => {
+    // Sending a departure on a DRIVE request opts into traffic-aware routing,
+    // which is billed at the higher tier for an answer a trip planned weeks
+    // ahead cannot use.
+    for (const mode of ["walk", "rideshare", "car"] as const) {
+      const body = await bodyOf({ from, to, mode, departureTime: "2027-04-02T00:30:00Z" });
+      expect(body.departureTime, mode).toBeUndefined();
+    }
+  });
+
+  test("omits the departure when the itinerary could not supply one", async () => {
+    const body = await bodyOf({ from, to, mode: "transit" });
+    expect(body.departureTime).toBeUndefined();
+  });
+
+  test("two departures on one leg are not the same cached answer", () => {
+    const morning = cacheKey({ from, to, mode: "transit", departureTime: "2027-04-02T00:30:00Z" });
+    const evening = cacheKey({ from, to, mode: "transit", departureTime: "2027-04-02T11:30:00Z" });
+    expect(morning).not.toBe(evening);
   });
 });

@@ -30,6 +30,14 @@ export type RouteResolver = (request: RouteRequest) => Promise<ResolvedRoute>;
 export interface LegContext {
   isCarDay: boolean;
   pace: Pace;
+  /**
+   * When this leg is actually travelled, as an RFC 3339 UTC instant, when the
+   * itinerary could work one out. Only the transit request carries it: transit
+   * is the only mode whose answer depends on the hour, and dating the walking
+   * and driving requests would give each departure its own cache entry for a
+   * journey whose length does not vary with it.
+   */
+  departureTime?: string;
 }
 
 export type ResolvedLeg = Omit<RouteLeg, "fromIndex" | "toIndex">;
@@ -102,7 +110,7 @@ export async function resolveLeg(
   }
 
   const [transit, drive] = await Promise.all([
-    tryResolve(resolve, { from, to, mode: "transit" }),
+    tryResolve(resolve, { from, to, mode: "transit", departureTime: ctx.departureTime }),
     tryResolve(resolve, { from, to, mode: "rideshare" }),
   ]);
 

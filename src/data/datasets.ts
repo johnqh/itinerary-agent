@@ -17,6 +17,12 @@ export interface OfflineDataset {
   center: LatLng;
   /** Names this city is commonly written as, lower case. */
   aliases: string[];
+  /**
+   * IANA zone. The itinerary is written in this clock, and a transit answer is
+   * only true of the moment it was asked about, so routing needs it to turn a
+   * scheduled departure into the instant the provider wants.
+   */
+  timeZone: string;
   attractions(dates: string[]): Attraction[];
   restaurants(dates: string[]): Restaurant[];
 }
@@ -27,6 +33,7 @@ export const OFFLINE_DATASETS: OfflineDataset[] = [
     label: SEED_DESTINATION,
     center: SEED_CENTER,
     aliases: ["tokyo", "tokyo japan", "東京"],
+    timeZone: "Asia/Tokyo",
     attractions: seedAttractions,
     restaurants: seedRestaurants,
   },
@@ -35,6 +42,7 @@ export const OFFLINE_DATASETS: OfflineDataset[] = [
     label: SF_DESTINATION,
     center: SF_CENTER,
     aliases: ["san francisco", "sf", "san fran"],
+    timeZone: "America/Los_Angeles",
     attractions: sfAttractions,
     restaurants: sfRestaurants,
   },

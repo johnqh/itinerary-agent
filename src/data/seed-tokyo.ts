@@ -57,7 +57,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 60,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ueno_park.jpg/1280px-Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Ueno_Seiyoken_in_the_Meiji_era.JPG/1280px-Ueno_Seiyoken_in_the_Meiji_era.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Shinobugaoka_Junior_High_School%2C_Taito_04.jpg/1280px-Shinobugaoka_Junior_High_School%2C_Taito_04.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg/500px-Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Ueno_park.jpg/1280px-Ueno_park.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Ueno_Seiyoken_in_the_Meiji_era.JPG/1280px-Ueno_Seiyoken_in_the_Meiji_era.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg/500px-Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "tokyo-national-museum",
@@ -72,7 +72,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Around ¥1,000",
     ticketRequired: true,
     officialUrl: "https://www.tnm.jp/",
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg/1280px-Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Yushima_Seid%C3%B4.jpg/500px-Yushima_Seid%C3%B4.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Nagoya_Castle_Feb_2011_66.jpg/330px-Nagoya_Castle_Feb_2011_66.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Staff_of_the_Yushima_Seido_Exposition_in_Meiji_5.jpg/500px-Staff_of_the_Yushima_Seido_Exposition_in_Meiji_5.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tokyo_National_Museum%2C_Honkan_2010.jpg/1280px-Tokyo_National_Museum%2C_Honkan_2010.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "akihabara",
@@ -124,7 +124,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "06:00", close: "14:00" },
     visitMinutes: 60,
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/2018_Tsukiji_fish_market.jpg/1280px-2018_Tsukiji_fish_market.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Crowds_of_Nishiki_Market_%2827816395458%29.jpg/1280px-Crowds_of_Nishiki_Market_%2827816395458%29.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tsukiji.CuttingFrozenTuna.jpg/500px-Tsukiji.CuttingFrozenTuna.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Tsukiji_fish_market_thuna_knife.jpg/500px-Tsukiji_fish_market_thuna_knife.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/2018_Tsukiji_fish_market.jpg/1280px-2018_Tsukiji_fish_market.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tsukiji.CuttingFrozenTuna.jpg/500px-Tsukiji.CuttingFrozenTuna.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Tsukiji_fish_market_thuna_knife.jpg/500px-Tsukiji_fish_market_thuna_knife.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "teamlab-planets",
@@ -139,7 +139,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     costSummary: "Around ¥3,800",
     ticketRequired: true,
     officialUrl: "https://www.teamlab.art/e/planets/",
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/TeamLab_Borderless_Azabudai_Hills.jpg/1280px-TeamLab_Borderless_Azabudai_Hills.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: [],
   },
   {
     id: "shibuya-crossing",
@@ -166,7 +166,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     visitMinutes: 75,
     costSummary: "Free",
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Meiji_Jingu_2023-3.jpg/1280px-Meiji_Jingu_2023-3.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png/1280px-Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Jingu_gaien_air.jpg/500px-Jingu_gaien_air.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Kisenosato_Yutaka1.jpg/250px-Kisenosato_Yutaka1.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Meiji_Jingu_2023-3.jpg/1280px-Meiji_Jingu_2023-3.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png/1280px-Emperor-Meiji-Empress-Shoken-Meiji-Shrine-c1926.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Jingu_gaien_air.jpg/500px-Jingu_gaien_air.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
   {
     id: "shinjuku-gyoen",
@@ -205,7 +205,7 @@ const SEED_ATTRACTIONS: SeedAttraction[] = [
     hours: { open: "10:00", close: "20:00" },
     visitMinutes: 50,
     ticketRequired: false,
-    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/JRE-Harajuku-Station-07.jpg/1280px-JRE-Harajuku-Station-07.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Omote-sando03s3200.jpg/1280px-Omote-sando03s3200.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Cat_Street%2C_Ura_Harajuku_2.jpg/1280px-Cat_Street%2C_Ura_Harajuku_2.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Watermill_at_Onden.jpg/1280px-Watermill_at_Onden.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
+    photoUrls: ["https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/JRE-Harajuku-Station-07.jpg/1280px-JRE-Harajuku-Station-07.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Omote-sando03s3200.jpg/1280px-Omote-sando03s3200.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Cat_Street%2C_Ura_Harajuku_2.jpg/1280px-Cat_Street%2C_Ura_Harajuku_2.jpg?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail"],
   },
 ];
 

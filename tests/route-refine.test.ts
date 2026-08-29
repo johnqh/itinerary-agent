@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { resolveLeg } from "@/routing/refine";
 import { RoutingUnavailable, type ResolvedRoute } from "@/routing/googleRoutes";
+import type { RouteRequest } from "@/routing/googleRoutes";
 import type { TransportMode } from "@/types/workspace";
 
 /**
@@ -25,13 +26,40 @@ function route(over: Partial<ResolvedRoute> = {}): ResolvedRoute {
 
 /** A resolver that answers per mode, and records what was asked for. */
 function resolver(byMode: Partial<Record<TransportMode, ResolvedRoute | Error>>) {
-  return vi.fn(async ({ mode }: { mode: TransportMode }) => {
+  return vi.fn(async ({ mode }: RouteRequest) => {
     const answer = byMode[mode];
     if (answer instanceof Error) throw answer;
     if (!answer) throw new RoutingUnavailable(`no ${mode}`);
     return answer;
   });
 }
+
+describe("the moment the leg is asked about", () => {
+  test("asks transit about the itinerary's departure", async () => {
+    const resolve = resolver({
+      walk: route({ durationMinutes: 40 }),
+      transit: route({ durationMinutes: 14 }),
+      rideshare: route({ durationMinutes: 11 }),
+    });
+    await resolveLeg(FROM, TO, { ...CTX, departureTime: "2027-04-02T00:30:00Z" }, resolve);
+
+    const transit = resolve.mock.calls.map(([r]) => r).find((r) => r.mode === "transit");
+    expect(transit?.departureTime).toBe("2027-04-02T00:30:00Z");
+  });
+
+  test("leaves walking and driving requests undated so they stay cacheable", async () => {
+    const resolve = resolver({
+      walk: route({ durationMinutes: 40 }),
+      transit: route({ durationMinutes: 14 }),
+      rideshare: route({ durationMinutes: 11 }),
+    });
+    await resolveLeg(FROM, TO, { ...CTX, departureTime: "2027-04-02T00:30:00Z" }, resolve);
+
+    const others = resolve.mock.calls.map(([r]) => r).filter((r) => r.mode !== "transit");
+    expect(others.length).toBeGreaterThan(0);
+    for (const request of others) expect(request.departureTime).toBeUndefined();
+  });
+});
 
 describe("walking", () => {
   test("takes a short walk without asking about anything else", async () => {
