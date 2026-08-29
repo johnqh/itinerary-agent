@@ -6,6 +6,7 @@ import type {
   Workspace,
 } from "@/types/workspace";
 import { buildPlan, tripDates } from "@/planner/build";
+import { discoverySteps, mealNotice, seedDiscoveryNotice } from "@/agent/notices";
 import { seedAttractions, seedRestaurants } from "@/data/seed-tokyo";
 
 /**
@@ -28,13 +29,13 @@ const EMPTY: Workspace = {
   degraded: { discovery: null, routing: null, optimizer: null, meals: null, map: null },
 };
 
-const SEED_NOTICE =
-  "Offline seed dataset. Live research tools are not connected yet, so these facts were not retrieved just now.";
 const ESTIMATE_NOTICE =
   "Travel times are straight-line estimates. No routing provider is connected, so transit is treated as unavailable.";
 const GREEDY_NOTICE =
   "Scheduled by the local greedy builder. The sandboxed optimizer is not connected yet.";
 
+/** Roughly how long the simulated discovery run takes, however many steps it has. */
+const DISCOVERY_RUN_MS = 900;
 const STEP_DELAY_MS = 220;
 
 function delay(ms: number): Promise<void> {
@@ -63,32 +64,36 @@ export function useItineraryAgent(): ItineraryAgent {
         ...current.degraded,
         routing: ESTIMATE_NOTICE,
         optimizer: GREEDY_NOTICE,
+        meals: mealNotice(plan, current.trip.meals),
       },
     };
   }, []);
 
   const discover = useCallback(async () => {
-    let dates: string[] = [];
+    // The counter's denominator is the step list itself, so discovery can never
+    // finish while the bar still claims work it was never going to do.
+    let steps: string[] = [];
     setWorkspace((current) => {
       if (!current.trip) return current;
-      dates = tripDates(current.trip);
+      steps = discoverySteps(tripDates(current.trip));
       return {
         ...current,
         phase: "discovering",
-        progress: { label: "Researching attractions", done: 0, total: dates.length + 2 },
+        progress: { label: steps[0] ?? "Researching attractions", done: 0, total: steps.length },
       };
     });
+    if (steps.length === 0) return;
 
-    // Stepped progress so the discovery phase is observable while it runs.
-    for (let step = 1; step <= 2; step++) {
-      await delay(STEP_DELAY_MS);
+    const perStep = Math.max(40, Math.round(DISCOVERY_RUN_MS / steps.length));
+    for (const [index, label] of steps.entries()) {
+      await delay(perStep);
+      const done = index + 1;
       setWorkspace((current) =>
         current.progress
-          ? { ...current, progress: { ...current.progress, done: step } }
+          ? { ...current, progress: { label, done, total: steps.length } }
           : current,
       );
     }
-    await delay(STEP_DELAY_MS);
 
     setWorkspace((current) => {
       if (!current.trip) return current;
@@ -99,7 +104,10 @@ export function useItineraryAgent(): ItineraryAgent {
         attractions: seedAttractions(resolved),
         restaurants: seedRestaurants(resolved),
         progress: null,
-        degraded: { ...current.degraded, discovery: SEED_NOTICE },
+        degraded: {
+          ...current.degraded,
+          discovery: seedDiscoveryNotice(current.trip.destination),
+        },
       };
     });
   }, []);
