@@ -3,6 +3,7 @@ import { useItineraryAgent } from "@/agent/adapter";
 import { harnessStatus } from "@/agent/client";
 import { tripDates as datesForTrip } from "@/planner/build";
 import { SEED_CENTER } from "@/data/seed-tokyo";
+import { focusCenter } from "@/lib/bounds";
 import CandidateList from "@/components/CandidateList";
 import DayTabs from "@/components/DayTabs";
 import DegradedBanner from "@/components/DegradedBanner";
@@ -55,6 +56,20 @@ export default function App() {
         ? (workspace.restaurants.find((r) => r.id === selection.id) ?? null)
         : null,
     [workspace.restaurants, selection],
+  );
+
+  // Live research can return any city, so the map opens on whatever was found
+  // and only falls back to the seed city while there is nothing to show.
+  const mapCenter = useMemo(
+    () =>
+      focusCenter(
+        [
+          ...workspace.attractions.map((a) => a.location),
+          ...workspace.restaurants.map((r) => r.location),
+        ],
+        SEED_CENTER,
+      ),
+    [workspace.attractions, workspace.restaurants],
   );
 
   const degraded = useMemo(
@@ -215,7 +230,7 @@ export default function App() {
 
         <section className="relative min-w-0 flex-1">
           <MapView
-            center={SEED_CENTER}
+            center={mapCenter}
             attractions={workspace.attractions}
             restaurants={workspace.restaurants}
             day={day}

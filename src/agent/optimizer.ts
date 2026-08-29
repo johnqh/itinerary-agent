@@ -10,7 +10,7 @@ import type {
   TransportMode,
   TripRequest,
 } from "@/types/workspace";
-import { createClient } from "@/agent/client";
+import { createClient, OPTIMIZER_MODEL } from "@/agent/client";
 import { readTurnOutput } from "@/agent/discovery";
 import { validateAgentPlan } from "@/agent/planValidation";
 import {
@@ -25,15 +25,6 @@ import { toMinutes } from "@/planner/time";
  * sandbox, and returns its output, which is then checked before use.
  */
 
-/**
- * The solver-writing model.
- *
- * The task is writing well-specified Python against rules supplied in the
- * brief, not open-ended reasoning, so the cheaper model is a deliberate choice
- * rather than a concession: a scheduling run iterates several times, and cost
- * per pass is what decides whether it can iterate at all.
- */
-const OPTIMIZER_MODEL = "openai/gpt-5-4-mini";
 const MODES: TransportMode[] = ["walk", "transit", "rideshare", "car"];
 
 export interface OptimizeInput {
