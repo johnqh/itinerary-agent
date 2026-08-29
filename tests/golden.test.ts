@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { buildPlan, tripDates } from "@/planner/build";
+import { validateAgentPlan } from "@/agent/planValidation";
 import { openDuring, toMinutes } from "@/planner/time";
 import { seedAttractions, seedRestaurants, SEED_DESTINATION } from "@/data/seed-tokyo";
 import type { Rating, TripRequest } from "@/types/workspace";
@@ -123,5 +124,24 @@ describe("golden itinerary from seed data", () => {
     for (const leg of plan.days.flatMap((d) => d.legs)) {
       if (leg.mode === "transit") expect(leg.transferCount).toBe(0);
     }
+  });
+});
+
+/**
+ * The validator is the trust boundary for an agent-written schedule, and the
+ * deterministic planner is what answers when that schedule is rejected. If the
+ * reference implementation cannot satisfy the boundary, the boundary is wrong:
+ * it would reject every honest schedule and leave the product with nothing to
+ * fall back to.
+ */
+describe("the deterministic planner satisfies the agent trust boundary", () => {
+  test("its own itinerary passes the checks an agent plan must pass", () => {
+    const result = validateAgentPlan(
+      plan.days,
+      { trip, dates, attractions, restaurants },
+      plan.diagnostics.excluded,
+    );
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(true);
   });
 });

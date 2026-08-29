@@ -38,6 +38,9 @@ export interface TripRequest {
 /**
  * Opening hours for one date. `unknown` is a first-class value: an explicit
  * unknown is always preferred over a plausible guess.
+ *
+ * `open` and `close` are HH:MM on that date, and a `close` at or before `open`
+ * closes the following morning: 18:00–02:00 is a single evening's service.
  */
 export type Hours =
   | { status: "open"; open: string; close: string }

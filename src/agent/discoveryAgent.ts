@@ -49,7 +49,17 @@ function placeProperties(dates: string[]) {
       required: dates,
       properties: Object.fromEntries(dates.map((d) => [d, HOURS_SCHEMA])),
     },
-    sources: { type: "array", items: SOURCE_SCHEMA },
+    // `minItems` would say "at least one source" in the schema itself, but
+    // strict structured outputs reject that keyword and the whole turn fails
+    // with an invalid-schema error. The requirement is stated in the
+    // description and the instructions, and enforced by the normalizer, which
+    // discards any record whose sources do not survive URL validation.
+    sources: {
+      type: "array",
+      description:
+        "At least one URL actually opened. A record citing none is discarded.",
+      items: SOURCE_SCHEMA,
+    },
     confidence: {
       type: "number",
       description: "0 to 1. How well sources support these facts.",
@@ -120,7 +130,9 @@ Grounding rules, in order of importance:
 1. Never state a fact you did not retrieve. If you did not confirm an opening
    time, set that date's status to "unknown". A guessed closing time sends a
    traveller to a locked door, which is worse than admitting you do not know.
-2. Every record needs at least one source URL you actually opened.
+2. Every record needs at least one working source URL you actually opened. A
+   record without one is discarded before the traveller sees it, so the work
+   spent finding it is wasted.
 3. Set confidence honestly: high only when a primary or official source
    confirms the practical details, low when you are inferring from one page.
 4. Coordinates must be real decimal degrees for that exact place.
