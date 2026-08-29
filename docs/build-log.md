@@ -2,6 +2,11 @@
 
 *A build log from the Agent Harness Hackathon.*
 
+> Written partway through the day. It covers the design and the first failures;
+> routing, nearby restaurant search, photograph lookup and the scheduler's
+> retry loop came afterwards. For how the finished system works, see
+> [how-it-works.md](how-it-works.md).
+
 The brief was to build an agent that does work rather than answers questions,
 using [TrueForge](https://github.com/truefoundry/trueforge). We built a trip
 planner: give it a city and some dates, it researches what is worth seeing,
