@@ -56,10 +56,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Pulls the structured payload out of the finished turn.
  *
  * The provider returns schema-conformant JSON as text, so it still has to be
- * parsed, and a parse failure must not read as "no attractions found".
- */
-/**
- * Pulls the structured payload out of the finished turn.
+ * parsed.
  *
  * Every failure here raises rather than returning an empty result: a cancelled
  * turn, a blank answer and a non-JSON reply are all real errors, and reporting

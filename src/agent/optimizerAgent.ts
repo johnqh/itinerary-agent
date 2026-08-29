@@ -1,4 +1,5 @@
 import type { Attraction, Rating, Restaurant, TripRequest } from "@/types/workspace";
+import { MEAL_DURATIONS } from "@/planner/meals";
 import { walkThresholdMinutes } from "@/planner/transport";
 
 /**
@@ -22,8 +23,8 @@ export interface OptimizerProblem {
   meals: {
     cuisines: string[];
     strictness: string;
-    lunch: { start: string; end: string };
-    dinner: { start: string; end: string };
+    lunch: { start: string; end: string; minimumMinutes: number };
+    dinner: { start: string; end: string; minimumMinutes: number };
   };
   travelModel: {
     walkKmh: number;
@@ -67,8 +68,8 @@ export function buildProblem(
     meals: {
       cuisines: trip.meals.cuisines,
       strictness: trip.meals.strictness,
-      lunch: { start: "11:30", end: "13:45" },
-      dinner: { start: "17:30", end: "20:15" },
+      lunch: { start: "11:30", end: "13:45", minimumMinutes: MEAL_DURATIONS.lunch },
+      dinner: { start: "17:30", end: "20:15", minimumMinutes: MEAL_DURATIONS.dinner },
     },
     travelModel: {
       walkKmh: 4.5,
@@ -118,32 +119,57 @@ The objective, in order:
 Interest weight by rating: 0 excludes it entirely, 1 -> 1, 2 -> 2, 3 -> 4,
 4 -> 7, and an unrated attraction counts as 1.5.
 
-Hard constraints. A schedule that breaks one of these is rejected outright, so
-check them in code before you answer:
+Hard constraints. Every one of these is re-checked against the problem data
+after you answer, and a schedule that breaks one is thrown away and replaced by
+a worse itinerary. Check them in code before you answer:
+- Return exactly one day object per date in "dates". Never omit a date, never
+  repeat one, and never return an empty day list.
+- Every clock is exactly HH:MM on a 24-hour clock, zero-padded, hours 00-23 and
+  minutes 00-59. "9:5" and "12:60" are rejected.
 - Every item lies inside the day window.
 - An attraction is scheduled only inside its opening hours for that date. A
   date whose status is "unknown" may be used; a date whose status is "closed"
   may not.
+- An attraction is given at least its visitMinutes. Shortening a visit to fit
+  another stop in is rejected.
 - No attraction appears more than once across the whole trip.
 - Items in a day run in chronological order and never overlap.
-- The gap between two consecutive stops is at least the travel time between
-  them. This is the constraint that is easiest to get wrong: reserve the
-  journey before you place the next stop.
-- Exactly one lunch and one dinner per day, each inside its window, at a
-  restaurant that is open at that hour.
+- Emit exactly one leg for each consecutive pair of items in a day, with
+  fromIndex = i and toIndex = i + 1. No leg may skip a stop or be repeated.
+- A leg's durationMinutes is at least the travel time the model below gives for
+  those two coordinates, and its mode is the mode that model selects. Both are
+  recomputed from the coordinates, so understating either is rejected.
+- A leg's distanceMeters is at least the great-circle distance between those two
+  coordinates. It is what the timeline shows the traveller, so a leg reported as
+  covering no ground is rejected however sound its duration is.
+- The gap between two consecutive stops is at least that travel time. This is
+  the constraint that is easiest to get wrong: reserve the journey before you
+  place the next stop.
+- At most one lunch and one dinner per day, each starting inside its window, at
+  a restaurant that is open for the whole sitting. Aim for both every day; if
+  the data cannot seat one, leave it out rather than seating it wrongly.
+- A meal runs for at least its minimumMinutes. Trimming a sitting to buy time
+  for another stop is rejected: a one-minute lunch is not a shorter meal.
+- Under "strong" strictness a meal is seated only at a restaurant serving one of
+  the requested cuisines, matched case-insensitively. There is no wrong-cuisine
+  fallback: leave the meal out instead.
+- Every attraction is either scheduled exactly once or listed exactly once in
+  "excluded" with a non-empty reason. Never both, never neither.
+- Set isCarDay true only when isCarTrip is true.
 
 Travel. Compute great-circle distance between coordinates, then:
 - walking minutes = distance / walkKmh, converted to minutes.
 - driving minutes = (distance * roadFactor) / driveKmh, plus the overhead.
-Pick the mode this way, in order: walk if walking is within
-walkThresholdMinutes; otherwise "car" if this is a car trip; otherwise
-"rideshare". Never emit "transit": no transit data is available on this run,
-and inventing a line or a transfer count would be a fabricated fact. On a car
-trip every non-walking leg is "car" and none may be transit.
+Round each to the nearest minute. Pick the mode this way, in order: walk if
+walking is within walkThresholdMinutes; otherwise "car" if the day is a car
+day; otherwise "rideshare". There is no transit on this run: no routing data
+was retrieved, so a line or a transfer count would be a fabricated fact, and
+the schema does not offer the mode. On a car trip every non-walking leg is
+"car"; on any other day every non-walking leg is "rideshare".
 
-Prefer restaurants matching the requested cuisines. Under "strong" strictness
-treat cuisine as a constraint and report a meal as unplaced rather than seating
-the wrong one.
+Prefer restaurants matching the requested cuisines. Under "prefer" strictness
+detour for a match when one is open and settle for the nearest alternative
+otherwise; under "flexible" take the nearest open table.
 
 Answer with the JSON object only, matching the required schema. Every
 attraction you did not schedule must appear in excluded with a short reason.
@@ -197,7 +223,9 @@ export function optimizerSchema(dates: string[]) {
                   properties: {
                     fromIndex: { type: "number" },
                     toIndex: { type: "number" },
-                    mode: { type: "string", enum: ["walk", "transit", "rideshare", "car"] },
+                    // No transit: this run retrieved no routing data, so the
+                    // mode is not offered rather than offered and then rejected.
+                    mode: { type: "string", enum: ["walk", "rideshare", "car"] },
                     durationMinutes: { type: "number" },
                     distanceMeters: { type: "number" },
                     fallbackReason: { type: ["string", "null"] },

@@ -5,6 +5,7 @@ import {
   fitsInDay,
   inMealWindow,
   openDuring,
+  parseClock,
   toClock,
   toMinutes,
 } from "@/planner/time";
@@ -17,6 +18,31 @@ describe("clock conversion", () => {
 
   test("pads single-digit hours and minutes", () => {
     expect(toClock(545)).toBe("09:05");
+  });
+});
+
+describe("reading an untrusted clock", () => {
+  test("reads a well-formed clock as minutes since midnight", () => {
+    expect(parseClock("09:05")).toBe(545);
+    expect(parseClock("00:00")).toBe(0);
+    expect(parseClock("23:59")).toBe(1439);
+  });
+
+  test("refuses a minute field that is not a minute", () => {
+    expect(parseClock("12:60")).toBeNull();
+  });
+
+  test("refuses an hour field that is not an hour", () => {
+    expect(parseClock("24:00")).toBeNull();
+  });
+
+  test("refuses an unpadded clock, which no reader can trust", () => {
+    expect(parseClock("9:5")).toBeNull();
+  });
+
+  test("refuses something that is not a clock at all", () => {
+    expect(parseClock("noon")).toBeNull();
+    expect(parseClock("")).toBeNull();
   });
 });
 

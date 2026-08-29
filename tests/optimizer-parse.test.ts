@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { toPlanDays } from "@/agent/optimizer";
+import { toPlanDays, unseatedMeals } from "@/agent/optimizer";
+import type { PlanDay } from "@/types/workspace";
+import { optimizerSchema } from "@/agent/optimizerAgent";
 
 /**
  * The scheduler's JSON is agent-produced. Malformed pieces are dropped rather
@@ -29,6 +31,73 @@ function payload(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("meals the scheduler did not seat", () => {
+  function planDay(meals: ("lunch" | "dinner")[]): PlanDay {
+    return {
+      date: "2026-09-12",
+      isCarDay: false,
+      items: meals.map((meal) => ({
+        kind: "meal" as const,
+        refId: "r1",
+        meal,
+        startTime: "12:30",
+        endTime: "13:30",
+      })),
+      legs: [],
+      summary: "",
+    };
+  }
+
+  test("reports each meal a day is missing", () => {
+    expect(unseatedMeals([planDay(["lunch"])])).toEqual([
+      { date: "2026-09-12", meal: "dinner", reason: expect.any(String) },
+    ]);
+  });
+
+  test("reports nothing when both meals are seated", () => {
+    expect(unseatedMeals([planDay(["lunch", "dinner"])])).toEqual([]);
+  });
+
+  /**
+   * The scheduler says only that a meal is absent. Why it is absent —
+   * everywhere shut, nothing near the route, a cuisine it would not
+   * compromise on — is something no part of this run learned, and the reason
+   * is read out to the traveller in the degraded banner.
+   */
+  test("does not claim a cause the scheduler never reported", () => {
+    const [missing] = unseatedMeals([planDay(["lunch"])]);
+    expect(missing!.reason).not.toMatch(/no restaurant (was )?open/i);
+    expect(missing!.reason).toMatch(/gave no reason|did not say/i);
+  });
+});
+
+describe("the shape the scheduler is asked for", () => {
+  /**
+   * No routing provider runs on this path, so a transit line or a transfer
+   * count would be invented rather than retrieved. The mode is withheld at the
+   * schema, not just rejected afterwards, so the model is never offered it.
+   */
+  test("offers no transit mode, because no transit data was retrieved", () => {
+    const schema = optimizerSchema(["2026-09-12"]);
+    const leg =
+      schema.schema.properties.days.items.properties.legs.items.properties;
+    expect(leg.mode.enum).toEqual(["walk", "rideshare", "car"]);
+  });
+
+  /**
+   * OpenAI's strict structured outputs reject several JSON Schema keywords,
+   * `minItems` among them, and a schema carrying one fails every turn. Counts
+   * and cardinality are stated in the instructions instead.
+   */
+  test("uses no schema keyword strict structured outputs would reject", () => {
+    const banned = ["minItems", "maxItems", "minimum", "maximum", "pattern", "format"];
+    const json = JSON.stringify(optimizerSchema(["2026-09-12"]));
+    for (const keyword of banned) {
+      expect(json).not.toContain(`"${keyword}"`);
+    }
+  });
+});
 
 describe("well-formed output", () => {
   test("reshapes days, items and legs", () => {

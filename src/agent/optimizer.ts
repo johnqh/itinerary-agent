@@ -9,6 +9,7 @@ import type {
   RouteLeg,
   TransportMode,
   TripRequest,
+  UnplacedMeal,
 } from "@/types/workspace";
 import { createClient, OPTIMIZER_MODEL } from "@/agent/client";
 import { readTurnOutput } from "@/agent/discovery";
@@ -25,6 +26,12 @@ import { toMinutes } from "@/planner/time";
  * sandbox, and returns its output, which is then checked before use.
  */
 
+/**
+ * The schema does not offer transit, but it stays readable here on purpose. A
+ * transit leg that arrived anyway is dropped by parsing, and a dropped leg
+ * looks to the validator like a missing one; keeping it lets the rejection say
+ * what actually happened.
+ */
 const MODES: TransportMode[] = ["walk", "transit", "rideshare", "car"];
 
 export interface OptimizeInput {
@@ -55,12 +62,6 @@ function num(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-/**
- * Reshapes the agent's JSON into contract types.
- *
- * Anything malformed is dropped here rather than coerced into something
- * plausible; the validator then decides whether what survived is usable.
- */
 /**
  * Reshapes the scheduler's JSON into contract types.
  *
@@ -143,6 +144,26 @@ export function toPlanDays(payload: unknown): {
   return { days, excluded, summary: str(root.summary) ?? "" };
 }
 
+/**
+ * The meals a returned schedule leaves unseated.
+ *
+ * The scheduler reports an absence, never a cause. Everywhere shut, nothing
+ * near the route, a cuisine it would not compromise on — this run learned none
+ * of them, and this sentence is read out to the traveller in the degraded
+ * banner. Naming a cause it did not determine would be inventing one.
+ */
+export function unseatedMeals(days: PlanDay[]): UnplacedMeal[] {
+  return days.flatMap((day) =>
+    (["lunch", "dinner"] as const)
+      .filter((meal) => !day.items.some((i) => i.kind === "meal" && i.meal === meal))
+      .map((meal) => ({
+        date: day.date,
+        meal,
+        reason: `The scheduler seated no ${meal} on ${day.date} and gave no reason for it.`,
+      })),
+  );
+}
+
 export class OptimizerRejected extends Error {
   constructor(readonly violations: string[]) {
     super(`The scheduler's answer broke ${violations.length} rule(s).`);
@@ -200,26 +221,24 @@ export async function runSandboxOptimizer(
 
   const { days, excluded, summary } = toPlanDays(readTurnOutput(finalState));
 
-  const verdict = validateAgentPlan(days, { trip, dates, attractions, restaurants });
+  // The exclusions are part of the answer, not commentary on it: they drive the
+  // excluded pins and the diagnostics, so they are checked with the schedule.
+  const verdict = validateAgentPlan(
+    days,
+    { trip, dates, attractions, restaurants },
+    excluded,
+  );
   if (!verdict.ok) throw new OptimizerRejected(verdict.violations);
 
   // The scheduler may legitimately fail to seat a meal; it may not do so
   // silently, so an absent meal becomes a reported degraded state.
-  const unplacedMeals = days.flatMap((day) =>
-    (["lunch", "dinner"] as const)
-      .filter((meal) => !day.items.some((i) => i.kind === "meal" && i.meal === meal))
-      .map((meal) => ({
-        date: day.date,
-        meal,
-        reason: "The scheduler found no restaurant open in that window.",
-      })),
-  );
+  const unplacedMeals = unseatedMeals(days);
 
   const scheduled = days.flatMap((d) => d.items).filter((i) => i.kind === "attraction");
-  const attractionMinutes = scheduled.reduce((sum, i) => {
-    const item = days.flatMap((d) => d.items).find((x) => x === i);
-    return sum + (item ? toMinutes(item.endTime) - toMinutes(item.startTime) : 0);
-  }, 0);
+  const attractionMinutes = scheduled.reduce(
+    (sum, item) => sum + (toMinutes(item.endTime) - toMinutes(item.startTime)),
+    0,
+  );
   const transportMinutes = days
     .flatMap((d) => d.legs)
     .reduce((sum, l) => sum + l.durationMinutes, 0);
