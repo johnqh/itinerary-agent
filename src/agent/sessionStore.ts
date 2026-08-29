@@ -8,6 +8,7 @@ import type {
   TripRequest,
   Workspace,
 } from "@/types/workspace";
+import { parseClock } from "@/planner/time";
 
 /**
  * Keeps a trip across a page reload.
@@ -125,13 +126,25 @@ function isLatLng(value: unknown): boolean {
   return isRecord(value) && isNumber(value.lat) && isNumber(value.lng);
 }
 
+/** 0..1, as the contract documents it and the detail panels render it. */
+function isConfidence(value: unknown): boolean {
+  return isNumber(value) && value >= 0 && value <= 1;
+}
+
+/**
+ * `parseClock` rather than a string check, for the reason it was written: the
+ * planner's time arithmetic trusts these strings, and "24:99" converts to a
+ * finite, plausible-looking number that quietly makes a place unschedulable.
+ */
 function isHours(value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (value.status === "closed" || value.status === "unknown") return true;
   return (
     value.status === "open" &&
     typeof value.open === "string" &&
-    typeof value.close === "string"
+    typeof value.close === "string" &&
+    parseClock(value.open) !== null &&
+    parseClock(value.close) !== null
   );
 }
 
@@ -159,7 +172,7 @@ function isAttraction(value: unknown): value is Attraction {
     typeof value.ticketRequired === "boolean" &&
     isStringArray(value.photoUrls) &&
     isSources(value.sources) &&
-    isNumber(value.confidence)
+    isConfidence(value.confidence)
   );
 }
 
@@ -172,7 +185,7 @@ function isRestaurant(value: unknown): value is Restaurant {
     isLatLng(value.location) &&
     isHoursByDate(value.hoursByDate) &&
     isSources(value.sources) &&
-    isNumber(value.confidence) &&
+    isConfidence(value.confidence) &&
     // Rendered as a repeated currency glyph, which throws outright on a
     // negative count.
     (value.priceLevel === undefined ||
@@ -270,6 +283,23 @@ function isDegraded(value: unknown): value is DegradedState {
   );
 }
 
+/**
+ * The step the traveller can actually resume on, or null for a record that
+ * offers them nothing.
+ *
+ * A phase is a claim about what to do next, and storage records it a moment
+ * before the work it describes finishes: `createTrip` writes `setup` with a
+ * trip and no candidates, and a tab closed there would otherwise reopen on a
+ * workspace whose only working control is "New trip". Nothing in flight can be
+ * resumed from storage, so the traveller lands on the last step they can act
+ * on — and rating needs something to rate, without which the honest answer is
+ * to start fresh rather than to show an empty screen with a plan button.
+ */
+function resumablePhase(phase: Phase, attractions: number, plan: Plan | null): Phase | null {
+  if (phase === "ready" && plan) return "ready";
+  return attractions > 0 ? "rating" : null;
+}
+
 function isPhase(value: unknown): value is Phase {
   return (
     value === "setup" ||
@@ -354,17 +384,15 @@ export function loadSession(storage: StorageLike, now = new Date()): StoredSessi
   const plan = parsed.plan == null ? null : isPlan(parsed.plan) ? parsed.plan : undefined;
   if (plan === undefined) return null;
 
+  const phase = resumablePhase(parsed.phase, parsed.attractions.length, plan);
+  if (!phase) return null;
+
   return {
     version: SESSION_SCHEMA_VERSION,
     savedAt: new Date(savedAt).toISOString(),
     trip,
     ratings: parsed.ratings,
-    // A run that was mid-flight cannot be resumed from storage alone; the
-    // traveller lands back on the last step they could act on.
-    phase:
-      parsed.phase === "discovering" || parsed.phase === "planning"
-        ? "rating"
-        : parsed.phase,
+    phase,
     sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : null,
     live: parsed.live === true,
     attractions: parsed.attractions,

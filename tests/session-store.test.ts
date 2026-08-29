@@ -37,26 +37,6 @@ function hostileStorage(): StorageLike {
   };
 }
 
-const workspace: Workspace = {
-  phase: "rating",
-  trip: {
-    destination: "Tokyo, Japan",
-    startDate: "2026-09-12",
-    endDate: "2026-09-13",
-    hasRentalCar: false,
-    pace: "balanced",
-    meals: { cuisines: ["japanese"], strictness: "prefer" },
-  },
-  sessionId: "sess-1",
-  restoredAt: null,
-  attractions: [],
-  restaurants: [],
-  ratings: { sensoji: 4 },
-  plan: null,
-  progress: null,
-  degraded: { discovery: null, routing: null, optimizer: null, meals: null, map: null },
-};
-
 const attraction: Attraction = {
   id: "sensoji",
   name: "Sensō-ji",
@@ -112,14 +92,33 @@ const plan: Plan = {
   },
 };
 
-/** What a traveller who has actually reached a plan has in hand. */
-const plannedWorkspace: Workspace = {
-  ...workspace,
-  phase: "ready",
+/**
+ * A traveller at the rating step. The candidates are not decoration: the
+ * rating screen is only ever reached by finishing discovery, so a stored
+ * "rating" with nothing to rate describes a run that never happened.
+ */
+const workspace: Workspace = {
+  phase: "rating",
+  trip: {
+    destination: "Tokyo, Japan",
+    startDate: "2026-09-12",
+    endDate: "2026-09-13",
+    hasRentalCar: false,
+    pace: "balanced",
+    meals: { cuisines: ["japanese"], strictness: "prefer" },
+  },
+  sessionId: "sess-1",
+  restoredAt: null,
   attractions: [attraction],
   restaurants: [restaurant],
-  plan,
+  ratings: { sensoji: 4 },
+  plan: null,
+  progress: null,
+  degraded: { discovery: null, routing: null, optimizer: null, meals: null, map: null },
 };
+
+/** What a traveller who has actually reached a plan has in hand. */
+const plannedWorkspace: Workspace = { ...workspace, phase: "ready", plan };
 
 const NOW = new Date("2026-09-01T12:00:00Z");
 
@@ -283,6 +282,33 @@ describe("refusing records that would crash or mislead the workspace", () => {
     expect(loadSession(storage, NOW)).toBeNull();
   });
 
+  // `toMinutes` is arithmetic over strings this codebase produced; a stored
+  // clock has to be a real one before the planner does time maths on it.
+  test("rejects a record whose opening hours are not real clocks", () => {
+    const storage = tamper((raw) => {
+      raw.attractions = [
+        { ...attraction, hoursByDate: { "2026-09-12": { status: "open", open: "garbage", close: "17:00" } } },
+      ] as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose opening hours are a plausible non-time", () => {
+    const storage = tamper((raw) => {
+      raw.restaurants = [
+        { ...restaurant, hoursByDate: { "2026-09-12": { status: "open", open: "11:00", close: "24:99" } } },
+      ] as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
+  test("rejects a record whose confidence is off the 0..1 scale", () => {
+    const storage = tamper((raw) => {
+      raw.attractions = [{ ...attraction, confidence: 42 }] as never;
+    });
+    expect(loadSession(storage, NOW)).toBeNull();
+  });
+
   test("rejects a record whose degraded notices are not notices", () => {
     const storage = tamper((raw) => {
       raw.degraded = { discovery: 12 } as never;
@@ -295,6 +321,43 @@ describe("refusing records that would crash or mislead the workspace", () => {
       delete (raw.trip as unknown as Record<string, unknown>).hasRentalCar;
     });
     expect(loadSession(storage, NOW)).toBeNull();
+  });
+});
+
+/**
+ * A phase is a claim about what the traveller can do next, so it has to agree
+ * with the data behind it. A screen offering a control that cannot work, or
+ * offering none at all, is worse than the setup form.
+ */
+describe("refusing records whose phase does not match their data", () => {
+  function store(record: Partial<Record<string, unknown>>): StorageLike {
+    const storage = memoryStorage();
+    saveSession(storage, workspace, { live: false, now: NOW });
+    const raw = JSON.parse(storage.getItem("itinerary-agent.session")!);
+    storage.setItem("itinerary-agent.session", JSON.stringify({ ...raw, ...record }));
+    return storage;
+  }
+
+  test("lands a ready trip with no plan back on the rating step", () => {
+    expect(loadSession(store({ phase: "ready", plan: null }), NOW)?.phase).toBe("rating");
+  });
+
+  test("refuses a trip that never got past the setup form", () => {
+    expect(loadSession(store({ phase: "setup", attractions: [] }), NOW)).toBeNull();
+  });
+
+  test("refuses a rating step with nothing to rate", () => {
+    expect(loadSession(store({ attractions: [] }), NOW)).toBeNull();
+  });
+
+  test("refuses discovery that never finished", () => {
+    expect(
+      loadSession(store({ phase: "discovering", attractions: [] }), NOW),
+    ).toBeNull();
+  });
+
+  test("lands an interrupted planning run back on the rating step", () => {
+    expect(loadSession(store({ phase: "planning" }), NOW)?.phase).toBe("rating");
   });
 });
 
