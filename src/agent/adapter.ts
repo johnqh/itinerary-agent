@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type {
   ItineraryAgent,
   Rating,
@@ -45,6 +45,12 @@ function delay(ms: number): Promise<void> {
 export function useItineraryAgent(): ItineraryAgent {
   const [workspace, setWorkspace] = useState<Workspace>(EMPTY);
 
+  // Read by actions that need the current trip before React has re-rendered.
+  // A state updater cannot stand in for it: the updater runs when React chooses
+  // to, which is after the action that queued it has already moved on.
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+
   // Pure: state updaters must be free of side effects, or React's double
   // invocation in development silently counts every plan twice.
   const runPlan = useCallback((current: Workspace): Workspace => {
@@ -69,20 +75,15 @@ export function useItineraryAgent(): ItineraryAgent {
     };
   }, []);
 
-  const discover = useCallback(async () => {
+  const runDiscovery = useCallback(async (trip: TripRequest) => {
     // The counter's denominator is the step list itself, so discovery can never
     // finish while the bar still claims work it was never going to do.
-    let steps: string[] = [];
-    setWorkspace((current) => {
-      if (!current.trip) return current;
-      steps = discoverySteps(tripDates(current.trip));
-      return {
-        ...current,
-        phase: "discovering",
-        progress: { label: steps[0] ?? "Researching attractions", done: 0, total: steps.length },
-      };
-    });
-    if (steps.length === 0) return;
+    const steps = discoverySteps(tripDates(trip));
+    setWorkspace((current) => ({
+      ...current,
+      phase: "discovering",
+      progress: { label: steps[0]!, done: 0, total: steps.length },
+    }));
 
     const perStep = Math.max(40, Math.round(DISCOVERY_RUN_MS / steps.length));
     for (const [index, label] of steps.entries()) {
@@ -112,12 +113,17 @@ export function useItineraryAgent(): ItineraryAgent {
     });
   }, []);
 
+  const discover = useCallback(async () => {
+    const trip = workspaceRef.current.trip;
+    if (trip) await runDiscovery(trip);
+  }, [runDiscovery]);
+
   const createTrip = useCallback(
     async (trip: TripRequest) => {
       setWorkspace({ ...EMPTY, trip, phase: "setup" });
-      await discover();
+      await runDiscovery(trip);
     },
-    [discover],
+    [runDiscovery],
   );
 
   const setRating = useCallback((attractionId: string, rating: Rating) => {
