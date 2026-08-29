@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { DiscoveryOptions, MealStrictness, Pace, TripRequest } from "@/types/workspace";
-import { hasSeedData } from "@/agent/notices";
+import { destinationHasData } from "@/agent/notices";
 import { isoDaysFromNow } from "@/lib/dates";
 import { MAX_TRIP_DAYS, validateTripDates } from "@/planner/build";
 import { SEED_DESTINATION } from "@/data/seed-tokyo";
@@ -31,9 +31,9 @@ export default function TripForm({ onSubmit, liveResearch }: TripFormProps) {
 
   // The planner enforces exactly this rule, so the two cannot disagree.
   const dateError = validateTripDates(startDate, endDate);
-  // Only warn about coverage when we know research is offline; with live
-  // research any destination is fair game.
-  const destinationCovered = liveResearch !== false || hasSeedData(destination);
+  // Coverage follows the checkbox, not the harness: live research that is
+  // available but switched off still plans this trip from the seed dataset.
+  const destinationCovered = destinationHasData({ destination, live, liveResearch });
 
   function toggleCuisine(cuisine: string) {
     setCuisines((current) =>
