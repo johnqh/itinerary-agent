@@ -12,7 +12,11 @@ function hoursLabel(attraction: Attraction, date: string): string {
   const hours = attraction.hoursByDate[date];
   if (!hours || hours.status === "unknown") return "Hours unknown";
   if (hours.status === "closed") return "Closed";
-  return `${hours.open}–${hours.close}`;
+  // A place that shuts for the afternoon and reopens has two intervals, and
+  // showing only the first tells the traveller it is shut when it is not.
+  return [{ open: hours.open, close: hours.close }, ...(hours.alsoOpen ?? [])]
+    .map((interval) => `${interval.open}–${interval.close}`)
+    .join(", ");
 }
 
 export default function DetailPanel({ attraction, tripDates, onClose }: Props) {

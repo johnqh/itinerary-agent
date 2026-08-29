@@ -8,7 +8,9 @@ import type {
   TripRequest,
   Workspace,
 } from "@/types/workspace";
-import { buildPlan, tripDates } from "@/planner/build";
+import { buildPlan, partitionCandidates, tripDates } from "@/planner/build";
+import { createNearbyFinder, fillMealGapsNearDays } from "@/routing/mealSearch";
+import { mergeRestaurantPools } from "@/agent/normalize";
 import {
   discoverySteps,
   liveDiscoveryProvenance,
@@ -398,6 +400,47 @@ export function useItineraryAgent(): ItineraryAgent {
     [commit, runPlan],
   );
 
+  /**
+   * Looks for meals around the days the ratings just decided.
+   *
+   * Discovery has to search before anything is rated, so it clusters every
+   * candidate found. The planner clusters what survives rating and opening
+   * hours, and an outlying attraction the traveller rejected can take a whole
+   * day's search with it. This asks again, now that the answer exists, and
+   * only around the centres the pool cannot already feed — so ratings that
+   * barely move the days cost nothing.
+   *
+   * A failure here is not fatal: the pool discovery found is still there, and
+   * a meal that cannot be seated is reported unseated rather than invented.
+   */
+  const mealsNearTheDays = useCallback(
+    async (trip: TripRequest, current: Workspace): Promise<Restaurant[]> => {
+      const dates = tripDates(trip);
+      const { candidates } = partitionCandidates(current.attractions, current.ratings, dates);
+
+      commit(trip, (w) =>
+        w.phase === "planning"
+          ? { ...w, progress: { label: "Checking for meals near your days", done: 0, total: 1 } }
+          : w,
+      );
+
+      const found = await fillMealGapsNearDays(
+        candidates,
+        dates.length,
+        current.restaurants,
+        createNearbyFinder(dates),
+      );
+      if (found.length === 0) return current.restaurants;
+
+      // Merged rather than concatenated: a venue the nearby search returns may
+      // already be in the pool under research's own id for it.
+      const merged = mergeRestaurantPools(current.restaurants, found);
+      commit(trip, (w) => ({ ...w, restaurants: merged }));
+      return merged;
+    },
+    [commit],
+  );
+
   const generatePlan = useCallback(async () => {
     const trip = workspaceRef.current.trip;
     if (!trip) return;
@@ -415,12 +458,14 @@ export function useItineraryAgent(): ItineraryAgent {
       return;
     }
 
+    const restaurants = await mealsNearTheDays(trip, current);
+
     try {
       const outcome = await runSandboxOptimizer({
         trip,
         dates: tripDates(trip),
         attractions: current.attractions,
-        restaurants: current.restaurants,
+        restaurants,
         ratings: current.ratings,
         onProgress: (label) =>
           commit(trip, (w) =>
@@ -442,7 +487,7 @@ export function useItineraryAgent(): ItineraryAgent {
           meals: w.trip ? mealNotice(outcome.plan, w.trip.meals) : null,
         },
       }));
-      await routePlan(outcome.plan, trip, current.attractions, current.restaurants);
+      await routePlan(outcome.plan, trip, current.attractions, restaurants);
     } catch (error) {
       // A rejected schedule is not a crash: the deterministic planner answers
       // instead, and the reason is shown rather than swallowed.
@@ -453,9 +498,9 @@ export function useItineraryAgent(): ItineraryAgent {
               error instanceof Error ? error.message : ""
             }`;
       const built = await planLocally(trip, reason.trim());
-      if (built) await routePlan(built, trip, current.attractions, current.restaurants);
+      if (built) await routePlan(built, trip, current.attractions, restaurants);
     }
-  }, [commit, planLocally, routePlan]);
+  }, [commit, mealsNearTheDays, planLocally, routePlan]);
 
   const submitRatings = useCallback(async () => {
     await generatePlan();

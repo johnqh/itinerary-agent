@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { normalizeDiscovery } from "@/agent/normalize";
+import { mergeRestaurantPools, normalizeDiscovery } from "@/agent/normalize";
+import type { Restaurant } from "@/types/workspace";
 
 const DATES = ["2026-09-07", "2026-09-08"];
 
@@ -272,5 +273,61 @@ describe("hours that run past midnight", () => {
       raw({ hoursByDate: { "2026-09-07": { status: "open", open: "12:00", close: "12:00" } } }),
     ]);
     expect(result.attractions[0]!.hoursByDate["2026-09-07"]).toEqual({ status: "unknown" });
+  });
+});
+
+/**
+ * A restaurant found by the nearby search and also returned by research is one
+ * restaurant. The two carry different ids — a provider id and a name slug — so
+ * concatenating the pools leaves the planner able to seat the same venue for
+ * lunch and dinner as if the traveller had eaten in two different places.
+ */
+describe("merging restaurant pools", () => {
+  function spot(over: Partial<Restaurant> & Pick<Restaurant, "id" | "name">): Restaurant {
+    return {
+      cuisine: [],
+      location: { lat: 37.7745, lng: -122.438 },
+      hoursByDate: {},
+      sources: [],
+      confidence: 0.6,
+      ...over,
+    };
+  }
+
+  test("one venue reported by both sources becomes one restaurant", () => {
+    const merged = mergeRestaurantPools(
+      [spot({ id: "places/abc", name: "Nopalito", confidence: 0.75 })],
+      // The same place, jittered, as a research subagent would report it.
+      [spot({ id: "nopalito", name: "Nopalito", location: { lat: 37.7746, lng: -122.4381 } })],
+    );
+    expect(merged).toHaveLength(1);
+    // The id the pool was first indexed under survives, so nothing that
+    // already refers to the restaurant by id is left pointing at nothing.
+    expect(merged[0]!.id).toBe("places/abc");
+  });
+
+  test("two branches of one chain stay two restaurants", () => {
+    const merged = mergeRestaurantPools(
+      [spot({ id: "places/mission", name: "Tartine" })],
+      [spot({ id: "tartine", name: "Tartine", location: { lat: 37.79, lng: -122.4 } })],
+    );
+    expect(merged).toHaveLength(2);
+  });
+
+  test("keeps the better-sourced record of a duplicate", () => {
+    const merged = mergeRestaurantPools(
+      [spot({ id: "places/abc", name: "Nopalito", confidence: 0.5 })],
+      [
+        spot({
+          id: "nopalito",
+          name: "Nopalito",
+          confidence: 0.9,
+          cuisine: ["mexican"],
+        }),
+      ],
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.cuisine).toEqual(["mexican"]);
+    expect(merged[0]!.id).toBe("places/abc");
   });
 });

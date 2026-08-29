@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
-import { gatherRestaurantsNearDays } from "@/routing/mealSearch";
-import type { Attraction, Restaurant } from "@/types/workspace";
+import { fillMealGapsNearDays, gatherRestaurantsNearDays } from "@/routing/mealSearch";
+import type { Attraction, LatLng, Restaurant } from "@/types/workspace";
 
 /**
  * Restaurants are looked for where the days are.
@@ -90,5 +90,70 @@ describe("gatherRestaurantsNearDays", () => {
     const find = vi.fn(async () => [restaurant("r1")]);
     expect(await gatherRestaurantsNearDays([], ["d1"], find)).toEqual([]);
     expect(find).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Discovery searches before the traveller has rated anything, so it clusters
+ * every candidate it found. The planner clusters only what survives rating and
+ * opening hours, and those are not the same geography: an outlying attraction
+ * the traveller rejects can take a whole day's search with it and leave the
+ * day that is actually built with nothing to eat near it.
+ *
+ * This asks the question again once the answer is known, and only where the
+ * pool does not already reach — so an itinerary whose clusters barely moved
+ * costs no calls at all.
+ */
+describe("fillMealGapsNearDays", () => {
+  function at(id: string, location: LatLng): Restaurant {
+    return { ...restaurant(id), location };
+  }
+
+  // Two restaurants beside each cluster: enough for the day's two meals.
+  const nearNorth = [
+    at("north-a", { lat: 37.8015, lng: -122.4115 }),
+    at("north-b", { lat: 37.8016, lng: -122.4116 }),
+  ];
+  const nearSouth = [
+    at("south-a", { lat: 37.7515, lng: -122.4215 }),
+    at("south-b", { lat: 37.7516, lng: -122.4216 }),
+  ];
+
+  test("spends nothing when every day already has somewhere to eat", async () => {
+    const find = vi.fn(async () => [restaurant("new")]);
+    const found = await fillMealGapsNearDays(attractions, 2, [...nearNorth, ...nearSouth], find);
+    expect(find).not.toHaveBeenCalled();
+    expect(found).toEqual([]);
+  });
+
+  test("searches only the day the existing pool does not reach", async () => {
+    const centres: LatLng[] = [];
+    const find = vi.fn(async (near: LatLng) => {
+      centres.push(near);
+      return [restaurant("late-find")];
+    });
+    const found = await fillMealGapsNearDays(attractions, 2, nearNorth, find);
+    expect(find).toHaveBeenCalledTimes(1);
+    expect(centres[0]!.lat).toBeLessThan(37.76);
+    expect(found.map((r) => r.id)).toEqual(["late-find"]);
+  });
+
+  test("one meal beside a day is not enough for a day that eats twice", async () => {
+    const find = vi.fn(async () => [restaurant("late-find")]);
+    await fillMealGapsNearDays(attractions, 2, [nearNorth[0]!, ...nearSouth], find);
+    expect(find).toHaveBeenCalledTimes(1);
+  });
+
+  test("never returns a restaurant the pool already holds", async () => {
+    const find = vi.fn(async () => [at("north-a", { lat: 37.7515, lng: -122.4215 })]);
+    const found = await fillMealGapsNearDays(attractions, 2, nearNorth, find);
+    expect(found).toEqual([]);
+  });
+
+  test("a failed search costs the trip nothing it already had", async () => {
+    const find = vi.fn(async () => {
+      throw new Error("nearby unavailable");
+    });
+    await expect(fillMealGapsNearDays(attractions, 2, nearNorth, find)).resolves.toEqual([]);
   });
 });

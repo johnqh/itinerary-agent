@@ -1,6 +1,6 @@
 import type { Attraction, Restaurant, TripRequest } from "@/types/workspace";
 import type { RejectedRecord } from "@/agent/normalize";
-import { normalizeDiscovery } from "@/agent/normalize";
+import { mergeRestaurantPools, normalizeDiscovery } from "@/agent/normalize";
 import {
   ORCHESTRATOR_MODEL,
   RESEARCH_MCP_SERVER,
@@ -145,14 +145,13 @@ export async function runLiveDiscovery(
   const withPhotos = await attachPhotos(
     normalized.attractions,
     trip.destination,
-    (done, total) =>
-      onProgress?.({ label: `Finding photographs (${done}/${total})`, done: 3, total: 3 }),
+    (done, total) => onProgress?.(tracker.photographs(done, total)),
   );
   // Restaurants are found where the days will be, not asked for up front.
   // Clustering the attractions the way the planner will means each search
   // happens around a centre a day is actually built around, so the traveller
   // is not sent across town for dinner.
-  onProgress?.({ label: "Looking for places to eat nearby", done: 3, total: 3 });
+  onProgress?.(tracker.meals());
   const nearbyRestaurants = await gatherRestaurantsNearDays(
     withPhotos,
     dates,
@@ -165,8 +164,11 @@ export async function runLiveDiscovery(
     sessionId: session.id,
     attractions: withPhotos,
     // Anything the research turn happened to return is kept, but the nearby
-    // search is what makes a meal reachable from that day's route.
-    restaurants: [...nearbyRestaurants, ...normalized.restaurants],
+    // search is what makes a meal reachable from that day's route. The two
+    // pools identify a place differently — a provider id against a name slug —
+    // so they are merged rather than concatenated: one venue arriving from
+    // both would otherwise be two options the planner could seat twice.
+    restaurants: mergeRestaurantPools(nearbyRestaurants, normalized.restaurants),
     rejected: normalized.rejected,
     subagentCount: tracker.subagentCount,
   };

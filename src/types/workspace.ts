@@ -41,9 +41,19 @@ export interface TripRequest {
  *
  * `open` and `close` are HH:MM on that date, and a `close` at or before `open`
  * closes the following morning: 18:00–02:00 is a single evening's service.
+ *
+ * `alsoOpen` carries any further service on the same date. A kitchen that
+ * shuts between lunch and dinner publishes two intervals, and keeping only the
+ * first of them tells the planner the place cannot seat dinner when it can.
+ * The gap between the intervals is a real closure and stays one.
  */
 export type Hours =
-  | { status: "open"; open: string; close: string }
+  | {
+      status: "open";
+      open: string;
+      close: string;
+      alsoOpen?: { open: string; close: string }[];
+    }
   | { status: "closed" }
   | { status: "unknown" };
 

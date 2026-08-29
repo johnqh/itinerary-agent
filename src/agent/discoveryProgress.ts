@@ -10,7 +10,20 @@ import type { Progress } from "@/types/workspace";
  * pretending to be a denominator.
  */
 
-const STAGES = ["connecting", "searching", "researching", "complete"] as const;
+/**
+ * Research finishing is not the run finishing. Photographs and the nearby meal
+ * search each take Places calls afterwards, so they are stages of their own:
+ * folded into "complete" they would report a finished run while a traveller
+ * waits, and a stall would be indistinguishable from an answer.
+ */
+const STAGES = [
+  "connecting",
+  "searching",
+  "researching",
+  "photographs",
+  "meals",
+  "complete",
+] as const;
 type Stage = (typeof STAGES)[number];
 
 const TOTAL = STAGES.length - 1;
@@ -23,6 +36,10 @@ export interface ProgressTracker {
   readonly subagentCount: number;
   start(): Progress;
   handle(eventType: string): Progress | null;
+  /** Looking up photographs for the places research returned. */
+  photographs(done: number, total: number): Progress;
+  /** Searching for somewhere to eat around each day's centre. */
+  meals(): Progress;
   finish(): Progress;
 }
 
@@ -31,6 +48,7 @@ export function createProgressTracker(): ProgressTracker {
   let lookups = 0;
   let spawned = 0;
   let completed = 0;
+  let photos: { done: number; total: number } | null = null;
 
   /** Stages only ever move forward; an out-of-order event cannot rewind them. */
   function advance(next: Stage): void {
@@ -53,6 +71,14 @@ export function createProgressTracker(): ProgressTracker {
         const who = `${spawned} researcher${spawned === 1 ? "" : "s"}`;
         return `Researching details (${who}, ${completed} done, ${lookups} lookups)`;
       }
+      case "photographs":
+        // The counter is a real one here: the number of places still to look
+        // up is known before the first lookup starts.
+        return photos
+          ? `Finding photographs (${photos.done}/${photos.total})`
+          : "Finding photographs";
+      case "meals":
+        return "Looking for places to eat nearby";
       case "complete":
         return "Research complete";
     }
@@ -89,6 +115,15 @@ export function createProgressTracker(): ProgressTracker {
         default:
           return null;
       }
+    },
+    photographs(done: number, total: number) {
+      photos = { done, total };
+      advance("photographs");
+      return snapshot();
+    },
+    meals() {
+      advance("meals");
+      return snapshot();
     },
     finish() {
       stage = "complete";
