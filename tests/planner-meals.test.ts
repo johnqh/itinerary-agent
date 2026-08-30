@@ -148,11 +148,11 @@ describe("meal strictness", () => {
   const farAlt = restaurant("r-far-2", 35.73, 139.8, ["vegan"]);
   const restaurants = [near, nearAlt, far, farAlt];
 
-  function lunchFor(strictness: MealStrictness) {
+  function lunchFor(strictness: MealStrictness, pool: Restaurant[] = restaurants) {
     const plan = buildPlan({
       trip: tripWith({ cuisines: ["vegan"], strictness }),
       attractions,
-      restaurants,
+      restaurants: pool,
       ratings: {},
     });
     return {
@@ -167,8 +167,19 @@ describe("meal strictness", () => {
   });
 
   test("prefer detours to a matching cuisine when one is open", () => {
-    const { lunch } = lunchFor("prefer");
-    expect(lunch?.refId).toBe("r-far");
+    // A real detour, but a reasonable one — the length a preference is worth.
+    const worthIt = restaurant("r-worth-it", 35.7065, 139.7765, ["vegan"]);
+    const { lunch } = lunchFor("prefer", [near, worthIt]);
+    expect(lunch?.refId).toBe("r-worth-it");
+  });
+
+  test("prefer stops short of crossing the city for a cuisine", () => {
+    // The same preference, but the only match is a long way off the route.
+    // A preference is worth a short walk, not a day's travel — otherwise
+    // lunch lands on the wrong side of the stops either side of it.
+    const distantMatch = restaurant("r-distant", 35.75, 139.83, ["vegan"]);
+    const { lunch } = lunchFor("prefer", [near, distantMatch]);
+    expect(lunch?.refId).toBe("r-near");
   });
 
   test("strong takes only a matching cuisine", () => {

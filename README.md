@@ -1,4 +1,4 @@
-# Itinerary Agent
+# Compass
 
 Turns a destination and a set of dates into a route-aware, day-by-day itinerary.
 
@@ -101,7 +101,8 @@ merely unlikely.
 | `src/components/` | Presentational workspace. Holds no planning logic. |
 | `src/data/` | Offline dataset used when research is unavailable. |
 | `tests/` | Unit tests per module, plus a golden test over the offline dataset. |
-| `docs/plan.md` | Requirements and technical design. |
+| `docs/how-it-works.md` | How the system actually works, end to end. |
+| `docs/plan.md` | The design written before implementation. |
 
 ## Development
 

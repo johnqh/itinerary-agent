@@ -14,7 +14,12 @@ import type {
   UnplacedMeal,
 } from "@/types/workspace";
 import { centroid, clusterByGeography, estimateTravel } from "@/planner/geo";
-import { MEAL_DURATIONS, matchesCuisine } from "@/planner/meals";
+import {
+  leastDetour,
+  matchesCuisine,
+  MEAL_DURATIONS,
+  worthTheDetour,
+} from "@/planner/meals";
 import { excludeReason, scoreAttraction } from "@/planner/scoring";
 import { selectMode } from "@/planner/transport";
 import {
@@ -370,6 +375,7 @@ function buildDay(input: BuildDayInput): DayResult {
     meal: MealKind,
     window: Segment,
     excludeIds: string[],
+    onwardTo: LatLng | null,
   ): { filled: FilledSegment; placement: MealPlacement } => {
     let filled = fill(segment, startPosition, null);
     let placement: MealPlacement = { spot: null };
@@ -384,6 +390,7 @@ function buildDay(input: BuildDayInput): DayResult {
         window,
         meals: trip.meals,
         excludeIds,
+        onwardTo,
       });
       const settled = next.spot?.id === placement.spot?.id;
       placement = next;
@@ -394,12 +401,29 @@ function buildDay(input: BuildDayInput): DayResult {
     return { filled, placement };
   };
 
+  // Where the afternoon begins, worked out before lunch is chosen so the meal
+  // can be judged on the detour it adds rather than on how near it is to the
+  // morning. This fill is provisional and commits nothing.
+  const morningOnly = fill({ start: DAY_START_MINUTES, end: lunchStart }, null, null);
+  const provisionalAfternoon = fill(
+    { start: lunchEnd, end: dinnerStart },
+    morningOnly.endPosition,
+    null,
+  );
+  const afternoonStart =
+    provisionalAfternoon.items[0]
+      ? ([...pool, ...spillover].find(
+          (a) => a.id === provisionalAfternoon.items[0]!.refId,
+        )?.location ?? null)
+      : null;
+
   const morning = fillThenMeal(
     { start: DAY_START_MINUTES, end: lunchStart },
     null,
     "lunch",
     { start: lunchStart, end: lunchEnd },
     usedRestaurantIds,
+    afternoonStart,
   );
   commit(taken, morning.filled);
 
@@ -411,6 +435,7 @@ function buildDay(input: BuildDayInput): DayResult {
     morning.placement.spot
       ? [...usedRestaurantIds, morning.placement.spot.id]
       : usedRestaurantIds,
+    null,
   );
   commit(taken, afternoon.filled);
 
@@ -439,10 +464,19 @@ function buildDay(input: BuildDayInput): DayResult {
     if (placement.spot) positions.set(placement.spot.id, placement.spot.location);
   }
 
-  const legs = buildLegs(items, positions, isCarDay, trip.pace);
+  // The day is settled now, so each meal is judged again against the stops it
+  // actually sits between rather than the guess it was chosen against.
+  const repicked = repickMeals(items, restaurants, positions, trip, date, usedRestaurantIds);
+  const legs = buildLegs(repicked.items, positions, isCarDay, trip.pace);
 
   return {
-    day: { date, isCarDay, items, legs, summary: summarize(items, isCarDay) },
+    day: {
+      date,
+      isCarDay,
+      items: repicked.items,
+      legs,
+      summary: summarize(repicked.items, isCarDay),
+    },
     unplacedMeals,
   };
 }
@@ -563,19 +597,17 @@ function fillSegment(input: FillSegmentInput): FilledSegment {
 interface PickRestaurantInput {
   restaurants: Restaurant[];
   near: LatLng;
+  /**
+   * Where the day goes after the meal, when that is known. A meal sits between
+   * two stops, so what it costs is the detour it adds — measuring only the
+   * stop before it sends the traveller backwards.
+   */
+  onwardTo: LatLng | null;
   date: string;
   meal: MealKind;
   window: Segment;
   meals: TripRequest["meals"];
   excludeIds: string[];
-}
-
-function nearest(pool: Restaurant[], near: LatLng): Restaurant {
-  return pool.reduce((closest, candidate) => {
-    const a = estimateTravel(near, candidate.location).driveMeters;
-    const b = estimateTravel(near, closest.location).driveMeters;
-    return a < b ? candidate : closest;
-  }, pool[0]!);
 }
 
 /**
@@ -645,7 +677,7 @@ function chooseRestaurant(
   pool: Restaurant[],
   input: PickRestaurantInput,
 ): MealPlacement {
-  const { near, date, meal, meals } = input;
+  const { near, onwardTo, date, meal, meals } = input;
   if (pool.length === 0) {
     return {
       spot: null,
@@ -654,7 +686,7 @@ function chooseRestaurant(
   }
 
   const wanted = meals.cuisines;
-  if (wanted.length === 0) return { spot: nearest(pool, near) };
+  if (wanted.length === 0) return { spot: leastDetour(pool, near, onwardTo) };
 
   const matching = pool.filter((r) => matchesCuisine(r, wanted));
   const wantedLabel = wanted.join(" or ");
@@ -666,19 +698,29 @@ function chooseRestaurant(
         reason: `No ${wantedLabel} restaurant is open for ${meal} on ${date}, and the cuisine preference is set to strong.`,
       };
     }
-    return { spot: nearest(matching, near) };
+    return { spot: leastDetour(matching, near, onwardTo) };
   }
 
   if (meals.strictness === "prefer") {
-    if (matching.length > 0) return { spot: nearest(matching, near) };
+    const bestOverall = leastDetour(pool, near, onwardTo);
+    const bestMatch = leastDetour(matching, near, onwardTo);
+
+    // Prefer means prefer when it is reasonable. Without this, a matching
+    // restaurant on the far side of the city beats one directly between the
+    // stop before the meal and the stop after it.
+    if (bestMatch && worthTheDetour(bestMatch, bestOverall, near, onwardTo)) {
+      return { spot: bestMatch };
+    }
     return {
-      spot: nearest(pool, near),
-      note: `No ${wantedLabel} option was open for ${meal} nearby; this is the closest alternative.`,
+      spot: bestOverall,
+      note: bestMatch
+        ? `The nearest ${wantedLabel} option was too far out of the way for ${meal}; this one is on the route.`
+        : `No ${wantedLabel} option was open for ${meal} nearby; this is the closest alternative.`,
     };
   }
 
   // flexible: cuisine is a nice-to-have and never worth a detour.
-  return { spot: nearest(pool, near) };
+  return { spot: leastDetour(pool, near, onwardTo) };
 }
 
 function buildLegs(
@@ -721,4 +763,115 @@ function summarize(items: PlanItem[], isCarDay: boolean): string {
         ? `, with ${meals[0]}`
         : ", with no meal stop the available restaurant data could support";
   return `${stops} stop${stops === 1 ? "" : "s"} ${mode}${mealText}.`;
+}
+
+export interface RepickResult {
+  items: PlanItem[];
+  usedIds: string[];
+}
+
+/**
+ * Chooses each meal again, now that the day around it is settled.
+ *
+ * A meal has to be picked before the rest of the day exists, so it is judged
+ * against a guess at where the afternoon will start — and inserting the meal
+ * changes that afternoon, so the guess is often wrong. The result was lunch
+ * more than a kilometre off the line between the stops it actually sits
+ * between, while somewhere twenty metres away went unused.
+ *
+ * Times are not touched. Meals are fixed anchors, so swapping which restaurant
+ * fills one does not move anything; only the travel either side changes, and
+ * that is resolved afterwards.
+ */
+export function repickMeals(
+  items: PlanItem[],
+  restaurants: Restaurant[],
+  positions: Map<string, LatLng>,
+  trip: TripRequest,
+  date: string,
+  alreadyUsedIds: string[],
+): RepickResult {
+  const chosen = new Set(alreadyUsedIds);
+  /** Restaurants an earlier meal of this same day has just taken. */
+  const claimedToday = new Set<string>();
+  const next = items.map((item) => ({ ...item }));
+
+  const travelMinutes = (from: LatLng, to: LatLng): number =>
+    selectMode(estimateTravel(from, to), {
+      isCarDay: trip.hasRentalCar,
+      pace: trip.pace,
+    }).durationMinutes;
+
+  next.forEach((item, index) => {
+    if (item.kind !== "meal" || !item.meal) return;
+
+    const previous = next[index - 1];
+    const following = next[index + 1];
+    const before = positions.get(previous?.refId ?? "");
+    const onward = positions.get(following?.refId ?? "") ?? null;
+    if (!before || !previous) {
+      chosen.add(item.refId);
+      claimedToday.add(item.refId);
+      // A meal kept as it was is still somewhere the traveller will be, so it
+      // has to be on the map for whatever comes after it: a day with no
+      // morning puts the next meal directly after this one, and that meal is
+      // judged against where it walks from.
+      const retained = restaurants.find((r) => r.id === item.refId);
+      if (retained) positions.set(retained.id, retained.location);
+      return;
+    }
+
+    const window = { start: toMinutes(item.startTime), end: toMinutes(item.endTime) };
+
+    // The clock does not move when the restaurant does. The first pass reserved
+    // travel to the restaurant it chose, so a replacement is only an option if
+    // it fits the same two gaps: a smaller total detour can still hide a leg
+    // that no longer fits, which reads as a day the traveller cannot walk.
+    const gapBefore = window.start - toMinutes(previous.endTime);
+    const gapAfter = following ? toMinutes(following.startTime) - window.end : null;
+    const reachable = (spot: Restaurant): boolean => {
+      if (travelMinutes(before, spot.location) > gapBefore) return false;
+      if (onward && gapAfter !== null) {
+        if (travelMinutes(spot.location, onward) > gapAfter) return false;
+      }
+      return true;
+    };
+
+    // Nothing reachable means the first pass's choice is the only one that
+    // fits, so it stays; a feasible day beats a marginally shorter one.
+    const withinReach = restaurants.filter(reachable);
+    if (withinReach.length === 0) {
+      chosen.add(item.refId);
+      claimedToday.add(item.refId);
+      return;
+    }
+
+    const placement = pickRestaurant({
+      restaurants: withinReach,
+      near: before,
+      onwardTo: onward,
+      date,
+      meal: item.meal,
+      window,
+      meals: trip.meals,
+      // This meal's own restaurant is not an exclusion for itself — unless the
+      // other meal of the day has already taken it, in which case keeping it
+      // here would seat the traveller in the same room twice.
+      excludeIds: [...chosen].filter(
+        (id) => id !== item.refId || claimedToday.has(id),
+      ),
+    });
+
+    if (placement.spot) {
+      item.refId = placement.spot.id;
+      // Assigned rather than merged: the note describes the restaurant that
+      // was chosen, so a note earned by the one it replaces is simply false.
+      item.notes = placement.note;
+      positions.set(placement.spot.id, placement.spot.location);
+    }
+    chosen.add(item.refId);
+    claimedToday.add(item.refId);
+  });
+
+  return { items: next, usedIds: [...chosen] };
 }
