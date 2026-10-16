@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "generate:cf-env": "curl -sL https://raw.githubusercontent.com/johnqh/workflows/main/scripts/generate-cloudflare-env.ts -o /tmp/generate-cloudflare-env.ts && bunx tsx /tmp/generate-cloudflare-env.ts",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

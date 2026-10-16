@@ -16,7 +16,7 @@ import Timeline from "@/components/Timeline";
 import TripForm from "@/components/TripForm";
 import type { Selection } from "@/types/workspace";
 
-export default function App() {
+function MainApp() {
   const agent = useItineraryAgent();
   const { workspace } = agent;
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -349,3 +349,6 @@ export default function App() {
     </div>
   );
 }
+
+function NotFoundPage() { useEffect(() => { if (window.location.pathname !== "/404") window.history.replaceState(null, "", "/404"); }, []); return <main className="mx-auto max-w-2xl px-4 py-16 text-center"><h1>404</h1><p>Page Not Found</p><a href="/">Go to Home</a></main>; }
+export default function App() { return window.location.pathname === "/" ? <MainApp /> : <NotFoundPage />; }

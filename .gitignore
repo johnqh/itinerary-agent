@@ -24,3 +24,4 @@ tmp/
 
 # Agent worktrees are separate checkouts, not project content.
 .claude/worktrees/
+!.env.production
